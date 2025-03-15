@@ -10,5 +10,3 @@ from .Favorite import Favorite
 from .ReviewDiscipline import ReviewDiscipline
 from .ReviewComment import ReviewComment
 from .ReviewVote import ReviewVote
-
-__all__ = [Session, Module, Role, User, UserRole, Teacher, Discipline, TeacherDiscipline, Favorite, ReviewDiscipline, ReviewComment, ReviewVote]
