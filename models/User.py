@@ -29,3 +29,13 @@ class User(Base):
 
     def check_password(self, password: str):
         return check_password_hash(self.password, password)
+
+    def get_dto(self):
+        return {
+            "id": str(self.id),
+            "first_name": self.first_name,
+            "surname": self.surname,
+            "patronymic": self.patronymic,
+            "email": self.email,
+            "is_block": self.is_block
+        }

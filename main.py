@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import os
 
 from database import engine, Base
+from routers import routes
 
 
 load_dotenv()
@@ -33,6 +34,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+for router in routes:
+    app.include_router(router, prefix="/api")
 
 
 if __name__ == "__main__":
