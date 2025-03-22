@@ -7,6 +7,7 @@ import os
 
 from database import engine, Base
 from routers import routes
+from init_db import init_db
 
 
 load_dotenv()
@@ -17,6 +18,9 @@ async def lifespan(app: FastAPI):
     if os.getenv("ENV") == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+    await init_db()
+
     yield
     await engine.dispose()
 

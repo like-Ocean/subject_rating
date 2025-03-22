@@ -22,7 +22,7 @@ class User(Base):
     favorites = relationship("Favorite", back_populates="user", cascade="all, delete-orphan")
     comments = relationship("ReviewComment", back_populates="author", cascade="all, delete-orphan")
     votes = relationship("ReviewVote", back_populates="user", cascade="all, delete-orphan")
-    user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+    user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", lazy="joined")
 
     def set_password(self, password: str):
         self.password = generate_password_hash(password)
@@ -37,5 +37,7 @@ class User(Base):
             "surname": self.surname,
             "patronymic": self.patronymic,
             "email": self.email,
-            "is_block": self.is_block
+            "is_block": self.is_block,
+            "roles": [user_role.role.name for user_role in self.user_roles]
         }
+
