@@ -28,3 +28,14 @@ class Discipline(Base):
     reviews = relationship("ReviewDiscipline", back_populates="discipline")
     favorites = relationship("Favorite", back_populates="discipline", cascade="all, delete-orphan")
     teacher_disciplines = relationship("TeacherDiscipline", back_populates="discipline")
+
+    def get_dto(self):
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "format": self.format,
+            "description": self.description,
+            "modeus_link": self.modeus_link,
+            "presentation_link": self.presentation_link,
+            "module_id": self.module_id
+        }

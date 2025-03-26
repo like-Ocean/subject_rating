@@ -1,13 +1,14 @@
 from uuid import uuid4
 import re
-from fastapi import HTTPException, Request
+from database import get_db
+from fastapi import HTTPException, Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload, joinedload
 from models import User, Session, Role, RoleEnum, UserRole
 
 
-# TODO: После изменений проверить смену пароля, авторизацию, проверку авторизации и изменение данных юзера.
+# TODO: .
 def validate_password(password: str):
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
@@ -43,8 +44,8 @@ async def registration(
     await db.commit()
     await db.refresh(new_user)
 
-    result = await db.execute(select(Role).where(Role.name == RoleEnum.user))
-    user_role_record = result.scalars().first()
+    res = await db.execute(select(Role).where(Role.name == RoleEnum.user))
+    user_role_record = res.scalars().first()
     if not user_role_record:
         raise HTTPException(status_code=500, detail="Default user role not found")
 
@@ -58,7 +59,13 @@ async def registration(
 
 
 async def authorization(email: str, password: str, db: AsyncSession):
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(
+        select(User)
+        .options(
+            joinedload(User.user_roles).joinedload(UserRole.role)
+        )
+        .where(User.email == email)
+    )
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=400, detail="Wrong login")
@@ -66,8 +73,8 @@ async def authorization(email: str, password: str, db: AsyncSession):
     if not user.check_password(password):
         raise HTTPException(status_code=400, detail="Wrong password")
 
-    result = await db.execute(select(Session).where(Session.user_id == user.id))
-    user_sessions = result.scalars().all()
+    res = await db.execute(select(Session).where(Session.user_id == user.id))
+    user_sessions = res.scalars().all()
 
     if len(user_sessions) >= 5:
         oldest_session = sorted(user_sessions, key=lambda s: str(s.id))[0]
@@ -88,15 +95,21 @@ async def authorization_check(session_token: str, db: AsyncSession):
     if not session:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    result = await db.execute(select(User).where(User.id == session.user_id))
-    user = result.scalars().first()
+    res = await db.execute(
+        select(User)
+        .options(
+            joinedload(User.user_roles).joinedload(UserRole.role)
+        )
+        .where(User.id == session.user_id)
+    )
+    user = res.scalars().first()
     if not user:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return user.get_dto()
 
 
-async def get_current_user(request: Request, db: AsyncSession):
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
     token = request.cookies.get("session")
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -106,8 +119,14 @@ async def get_current_user(request: Request, db: AsyncSession):
     if not session:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    result = await db.execute(select(User).where(User.id == session.user_id))
-    user = result.scalars().first()
+    res = await db.execute(
+        select(User)
+        .options(
+            joinedload(User.user_roles).joinedload(UserRole.role)
+        )
+        .where(User.id == session.user_id)
+    )
+    user = res.scalars().first()
     if not user:
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -122,16 +141,22 @@ async def change_user(
         email: str | None = None,
         db: AsyncSession = None
 ):
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User)
+        .options(
+            joinedload(User.user_roles).joinedload(UserRole.role)
+        )
+        .where(User.id == user_id)
+    )
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
 
     if email and email != user.email:
-        result = await db.execute(
+        res = await db.execute(
             select(User).where(and_(User.email == email, User.id != user_id))
         )
-        if result.scalars().first():
+        if res.scalars().first():
             raise HTTPException(status_code=400, detail="User with this email already exists")
 
     if first_name is not None:
@@ -150,7 +175,13 @@ async def change_user(
 
 
 async def change_password(user_id: str, password: str, db: AsyncSession):
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User)
+        .options(
+            joinedload(User.user_roles).joinedload(UserRole.role)
+        )
+        .where(User.id == user_id)
+    )
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
@@ -161,6 +192,8 @@ async def change_password(user_id: str, password: str, db: AsyncSession):
     return user.get_dto()
 
 
+# TODO: возможно, нужно спросить, могут ли другие пользователи смотреть профили других пользователей
+# или эта функция нужна только админу.
 async def get_users(db: AsyncSession):
     result = await db.execute(
         select(User).options(

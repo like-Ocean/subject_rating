@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
+from models import User
 from database import get_db
 from service import user_service
 from .user_scheme import RegisterModel, Authorization, ChangePasswordModel, ChangeModel
@@ -47,7 +48,12 @@ async def logout():
 
 
 @user_router.patch("/user/edit")
-async def edit_user(user: ChangeModel, db: AsyncSession = Depends(get_db)):
+async def edit_user(
+        user: ChangeModel,
+        current_user: User = Depends(user_service.get_current_user),
+        db: AsyncSession = Depends(get_db)
+
+):
     user_data = await user_service.change_user(
         user.user_id, user.first_name,
         user.surname, user.patronymic, user.email, db
@@ -56,7 +62,11 @@ async def edit_user(user: ChangeModel, db: AsyncSession = Depends(get_db)):
 
 
 @user_router.patch("/user/edit/password")
-async def edit_password(user: ChangePasswordModel, db: AsyncSession = Depends(get_db)):
+async def edit_password(
+        user: ChangePasswordModel,
+        current_user: User = Depends(user_service.get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
     await user_service.change_password(user.user_id, user.password, db)
     return Response(status_code=200)
 

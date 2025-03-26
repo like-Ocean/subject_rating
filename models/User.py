@@ -38,6 +38,6 @@ class User(Base):
             "patronymic": self.patronymic,
             "email": self.email,
             "is_block": self.is_block,
-            "roles": [user_role.role.name for user_role in self.user_roles]
+            "roles": [user_role.role.name.value for user_role in self.user_roles]
         }
 
