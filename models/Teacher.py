@@ -15,3 +15,11 @@ class Teacher(Base):
     patronymic = Column(String(50), nullable=True)
 
     teacher_disciplines = relationship("TeacherDiscipline", back_populates="teacher")
+
+    def get_dto(self):
+        return {
+            "id": str(self.id),
+            "first_name": self.first_name,
+            "surname": self.surname,
+            "patronymic": self.patronymic
+        }

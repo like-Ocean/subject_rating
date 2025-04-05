@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from models import User, Session, Role, RoleEnum, UserRole
 
 
-# TODO: .
+# TODO: Удаление юзера
 def validate_password(password: str):
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
