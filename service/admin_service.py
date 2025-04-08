@@ -3,8 +3,10 @@ from fastapi import HTTPException
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.orm import joinedload
-from models import User, Role, RoleEnum, UserRole, Module, Teacher, Discipline, DisciplineFormatEnum
+from sqlalchemy.orm import joinedload, selectinload
+from models import (
+    User, Role, RoleEnum, UserRole, Module,
+    Teacher, Discipline, DisciplineFormatEnum, TeacherDiscipline)
 
 
 async def appoint_admin(target_user_id: str, current_user: dict, db: AsyncSession):
@@ -129,7 +131,10 @@ async def delete_module(module_id: str, current_user: dict, db: AsyncSession):
     result = await db.execute(select(Discipline).where(Discipline.module_id == module_id))
     discipline = result.scalars().first()
     if discipline:
-        raise HTTPException(status_code=400, detail="Module cannot be deleted because there are associated disciplines")
+        raise HTTPException(
+            status_code=400,
+            detail="Module cannot be deleted because there are associated disciplines"
+        )
 
     await db.delete(module)
     await db.commit()
@@ -219,8 +224,14 @@ async def delete_teacher(
 
 
 async def get_teachers(db: AsyncSession):
-    teacher = await db.execute(select(Teacher))
-    teachers = teacher.unique().scalars().all()
+    result = await db.execute(
+        select(Teacher).options(
+            selectinload(
+                Teacher.teacher_disciplines
+            ).joinedload(TeacherDiscipline.discipline)
+        )
+    )
+    teachers = result.unique().scalars().all()
     return [teacher.get_dto() for teacher in teachers]
 
 
@@ -293,7 +304,10 @@ async def update_discipline(
     presentation_link: Optional[str] = None,
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
-        raise HTTPException(status_code=403, detail="Only super-admin or admin can update discipline")
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can update discipline"
+        )
 
     result = await db.execute(select(Discipline).where(Discipline.id == discipline_id))
     discipline = result.scalars().first()
@@ -332,7 +346,10 @@ async def update_discipline(
         )
         existing = result.scalars().first()
         if existing:
-            raise HTTPException(status_code=400, detail="Discipline with this name already exists in this module")
+            raise HTTPException(
+                status_code=400,
+                detail="Discipline with this name already exists in this module"
+            )
         discipline.name = name
 
     if description is not None:
@@ -353,7 +370,10 @@ async def delete_discipline(
     discipline_id: str
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
-        raise HTTPException(status_code=403, detail="Only super-admin or admin can delete discipline")
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can delete discipline"
+        )
 
     result = await db.execute(select(Discipline).where(Discipline.id == discipline_id))
     discipline = result.scalars().first()
@@ -370,3 +390,96 @@ async def get_disciplines(db: AsyncSession):
     discipline = await db.execute(select(Discipline))
     disciplines = discipline.unique().scalars().all()
     return [discipline.get_dto() for discipline in disciplines]
+
+
+# узнать зачем нам teacherDescipline
+# и так далее по списку,не забыть добавить возможность репортов на отзывы и тд, чекнуть заметки
+async def appoint_teacher_discipline(
+        db: AsyncSession,
+        current_user: dict,
+        teacher_id: str,
+        discipline_id: str,
+):
+    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can assign a teacher to a discipline"
+        )
+
+    teacher_result = await db.execute(select(Teacher).where(Teacher.id == teacher_id))
+    teacher = teacher_result.scalars().first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    discipline_result = await db.execute(select(Discipline).where(Discipline.id == discipline_id))
+    discipline = discipline_result.scalars().first()
+    if not discipline:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+
+    existing_result = await db.execute(
+        select(TeacherDiscipline).where(
+            and_(
+                TeacherDiscipline.teacher_id == teacher_id,
+                TeacherDiscipline.discipline_id == discipline_id
+            )
+        )
+    )
+    existing_link = existing_result.scalars().first()
+    if existing_link:
+        raise HTTPException(status_code=400, detail="Teacher is already assigned to this discipline")
+
+    new_assignment = TeacherDiscipline(
+        teacher_id=teacher_id,
+        discipline_id=discipline_id
+    )
+    db.add(new_assignment)
+    await db.commit()
+    await db.refresh(new_assignment)
+
+    teacher_result = await db.execute(
+        select(Teacher).options(
+            selectinload(Teacher.teacher_disciplines).joinedload(TeacherDiscipline.discipline)
+        ).where(Teacher.id == teacher_id)
+    )
+    teacher = teacher_result.scalars().first()
+
+    return teacher.get_dto()
+
+
+async def remove_teacher_discipline(
+        db: AsyncSession,
+        current_user: dict,
+        teacher_id: str,
+        discipline_id: str
+):
+    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can remove a teacher from a discipline"
+        )
+
+    teacher_result = await db.execute(select(Teacher).where(Teacher.id == teacher_id))
+    teacher = teacher_result.scalars().first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    result = await db.execute(
+        select(TeacherDiscipline).where(
+            TeacherDiscipline.teacher_id == teacher_id,
+            TeacherDiscipline.discipline_id == discipline_id
+        )
+    )
+    assignment = result.scalars().first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Teacher is not assigned to this discipline")
+
+    await db.delete(assignment)
+    await db.commit()
+
+    teacher_result = await db.execute(
+        select(Teacher).options(
+            selectinload(Teacher.teacher_disciplines).joinedload(TeacherDiscipline.discipline)
+        ).where(Teacher.id == teacher_id)
+    )
+    teacher = teacher_result.scalars().first()
+    return teacher.get_dto()

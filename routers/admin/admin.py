@@ -6,7 +6,8 @@ from service import admin_service, user_service
 from .admin_scheme import (
     AddAdminModel, AddModuleModel, UpdateModuleModel,
     RemoveAdminModel, DeleteModuleModel, CreateTeacherModel, UpdateTeacherModel,
-    DeleteTeacherModel, CreateDisciplineModel, UpdateDisciplineModel, DeleteDisciplineModel
+    DeleteTeacherModel, CreateDisciplineModel, UpdateDisciplineModel, DeleteDisciplineModel,
+    AppointTeacherDiscipline
 )
 
 admin_router = APIRouter(prefix="/admin", tags=["admins"])
@@ -165,3 +166,27 @@ async def delete_discipline(
 async def get_disciplines(db: AsyncSession = Depends(get_db)):
     disciplines = await admin_service.get_disciplines(db)
     return disciplines
+
+
+@admin_router.post("/teacher/discipline/appoint")
+async def appoint_teacher_discipline(
+        data: AppointTeacherDiscipline,
+        current_user: dict = Depends(user_service.get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    teacher = await admin_service.appoint_teacher_discipline(
+        db, current_user, data.teacher_id, data.discipline_id
+    )
+    return teacher
+
+
+@admin_router.delete("/teacher/discipline/remove")
+async def remove_teacher_discipline(
+        data: AppointTeacherDiscipline,
+        current_user: dict = Depends(user_service.get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    teacher = await admin_service.remove_teacher_discipline(
+        db, current_user, data.teacher_id, data.discipline_id
+    )
+    return teacher

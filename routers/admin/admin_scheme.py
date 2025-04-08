@@ -68,3 +68,8 @@ class UpdateDisciplineModel(BaseModel):
 
 class DeleteDisciplineModel(BaseModel):
     discipline_id: str = Field(...)
+
+
+class AppointTeacherDiscipline(BaseModel):
+    teacher_id: str = Field(...)
+    discipline_id: str = Field(...)
