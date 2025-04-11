@@ -4,8 +4,8 @@ from database import get_db
 from fastapi import HTTPException, Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload, joinedload
 from models import User, Session, Role, RoleEnum, UserRole
+from sqlalchemy.orm import selectinload, joinedload
 
 
 # TODO: Удаление юзера
@@ -216,3 +216,8 @@ async def get_user(user_id: str, db: AsyncSession):
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
     return user.get_dto()
+
+
+# удаление юзера(только для админов),
+async def delete_user(db: AsyncSession, user_id: str):
+    ...

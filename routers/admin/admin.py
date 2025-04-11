@@ -6,8 +6,7 @@ from service import admin_service, user_service
 from .admin_scheme import (
     AddAdminModel, AddModuleModel, UpdateModuleModel,
     RemoveAdminModel, DeleteModuleModel, CreateTeacherModel, UpdateTeacherModel,
-    DeleteTeacherModel, CreateDisciplineModel, UpdateDisciplineModel, DeleteDisciplineModel,
-    AppointTeacherDiscipline
+    DeleteTeacherModel, AppointTeacherDiscipline
 )
 
 admin_router = APIRouter(prefix="/admin", tags=["admins"])
@@ -122,50 +121,6 @@ async def delete_teacher(
 async def get_teachers(db: AsyncSession = Depends(get_db)):
     teachers = await admin_service.get_teachers(db)
     return teachers
-
-
-@admin_router.post("/discipline/create")
-async def create_discipline(
-        data: CreateDisciplineModel,
-        current_user: dict = Depends(user_service.get_current_user),
-        db: AsyncSession = Depends(get_db)
-):
-    discipline = await admin_service.create_discipline(
-        db, current_user, data.name, data.format,
-        data.module_id, data.description, data.modeus_link,
-        data.presentation_link
-    )
-    return discipline
-
-
-@admin_router.patch("/discipline/update")
-async def update_discipline(
-        data: UpdateDisciplineModel,
-        current_user: dict = Depends(user_service.get_current_user),
-        db: AsyncSession = Depends(get_db)
-):
-    discipline = await admin_service.update_discipline(
-        db, current_user, data.discipline_id, data.name,
-        data.format_value, data.module_id, data.description,
-        data.modeus_link, data.presentation_link
-    )
-    return discipline
-
-
-@admin_router.delete("/discipline/delete")
-async def delete_discipline(
-    data: DeleteDisciplineModel,
-    current_user: dict = Depends(user_service.get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await admin_service.delete_teacher(db, current_user, data.discipline_id,)
-    return result
-
-
-@admin_router.get("/disciplines/get")
-async def get_disciplines(db: AsyncSession = Depends(get_db)):
-    disciplines = await admin_service.get_disciplines(db)
-    return disciplines
 
 
 @admin_router.post("/teacher/discipline/appoint")

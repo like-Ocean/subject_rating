@@ -1,7 +1,9 @@
 from .user import user
 from .admin import admin
+from .discipline import discipline
 
 routes = [
     user.user_router,
-    admin.admin_router
+    admin.admin_router,
+    discipline.discipline_router
 ]
