@@ -31,3 +31,7 @@ class UpdateDisciplineModel(BaseModel):
 
 class DeleteDisciplineModel(BaseModel):
     discipline_id: str = Field(...)
+
+
+class AddFavorite(BaseModel):
+    discipline_id: str = Field(...)

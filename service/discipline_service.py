@@ -1,11 +1,10 @@
 from typing import Optional
-
 from fastapi import HTTPException
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from models import DisciplineFormatEnum, Module, Discipline
+from models import DisciplineFormatEnum, Module, Discipline, User, Favorite
 
 
 async def create_discipline(
@@ -19,7 +18,10 @@ async def create_discipline(
         presentation_link: Optional[str] = None,
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
-        raise HTTPException(status_code=403, detail="Only super-admin or admin can create discipline")
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can create discipline"
+        )
 
     try:
         discipline_format = DisciplineFormatEnum(format_value)
@@ -61,7 +63,12 @@ async def create_discipline(
     )
     db.add(new_discipline)
     await db.commit()
-    await db.refresh(new_discipline)
+
+    res = await db.execute(
+        Discipline.get_joined_data().where(Discipline.id == new_discipline.id)
+    )
+    new_discipline = res.scalars().first()
+
     return new_discipline.get_dto()
 
 
@@ -92,7 +99,8 @@ async def update_discipline(
             result = await db.execute(select(Module).where(Module.id == module_id))
         except DBAPIError as e:
             raise HTTPException(
-                status_code=400, detail="Invalid module_id. Please provide a valid UUID."
+                status_code=400,
+                detail="Invalid module_id. Please provide a valid UUID."
             ) from e
         module = result.scalars().first()
         if not module:
@@ -133,7 +141,13 @@ async def update_discipline(
         discipline.presentation_link = presentation_link
 
     await db.commit()
-    await db.refresh(discipline)
+
+    result = await db.execute(
+        Discipline.get_joined_data()
+        .where(Discipline.id == discipline_id)
+    )
+    discipline = result.scalars().first()
+
     return discipline.get_dto()
 
 
@@ -159,17 +173,17 @@ async def delete_discipline(
     return {"detail": "Discipline deleted successfully"}
 
 
-# TODO: Сделать чтобы приходили с dto:
-#  рейтинг (среднее из всех отзывов)
-#  количество отзывов количество добавлений в избранное
 async def get_disciplines(db: AsyncSession):
-    discipline = await db.execute(select(Discipline))
-    disciplines = discipline.unique().scalars().all()
+    result = await db.execute(Discipline.get_joined_data())
+    disciplines = result.scalars().all()
     return [discipline.get_dto() for discipline in disciplines]
 
 
 async def get_discipline(db: AsyncSession, discipline_id: str):
-    res = await db.execute(select(Discipline).where(Discipline.id == discipline_id))
+    res = await db.execute(
+        Discipline.get_joined_data()
+        .where(Discipline.id == discipline_id)
+    )
     discipline = res.scalars().first()
     if not discipline:
         raise HTTPException(status_code=400, detail="Discipline not found")
@@ -186,3 +200,85 @@ async def search_disciplines(
     sort_order: Optional[str] = "desc"      # "asc" или "desc"
 ):
     pass
+
+
+async def add_favorite(db: AsyncSession, user_id: str, discipline_id: str):
+    user_data = await db.execute(select(User).where(User.id == user_id))
+    user = user_data.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    discipline_data = await db.execute(select(Discipline).where(Discipline.id == discipline_id))
+    discipline = discipline_data.scalars().first()
+    if not discipline:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+
+    fav_data = await db.execute(
+        select(Favorite).where(
+            and_(
+                Favorite.user_id == user_id,
+                Favorite.discipline_id == discipline_id
+            )
+        )
+    )
+    existing = fav_data.scalars().first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Discipline already in favorites")
+
+    favorite = Favorite(user_id=user_id, discipline_id=discipline_id)
+    db.add(favorite)
+    await db.commit()
+
+    query = Discipline.get_joined_data().where(Discipline.id == discipline_id)
+    result = await db.execute(query)
+    updated_discipline = result.scalars().first()
+
+    return updated_discipline.get_dto()
+
+
+async def remove_favorite(db: AsyncSession, user_id: str, discipline_id: str):
+    user_data = await db.execute(select(User).where(User.id == user_id))
+    user = user_data.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    discipline_data = await db.execute(select(Discipline).where(Discipline.id == discipline_id))
+    discipline = discipline_data.scalars().first()
+    if not discipline:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+
+    result = await db.execute(
+        select(Favorite).where(
+            and_(
+                Favorite.user_id == user_id,
+                Favorite.discipline_id == discipline_id
+            )
+        )
+    )
+    favorite = result.scalars().first()
+    if not favorite:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+
+    await db.delete(favorite)
+    await db.commit()
+
+    query = Discipline.get_joined_data().where(Discipline.id == discipline_id)
+    result = await db.execute(query)
+    updated_discipline = result.scalars().first()
+
+    return updated_discipline.get_dto()
+
+
+async def get_user_favorites(db: AsyncSession, user_id: str):
+    result = await db.execute(
+        select(Discipline)
+        .join(Favorite, Discipline.id == Favorite.discipline_id)
+        .where(Favorite.user_id == user_id)
+        .options(
+            selectinload(Discipline.module),
+            selectinload(Discipline.reviews),
+            selectinload(Discipline.favorites)
+        )
+    )
+    disciplines = result.scalars().all()
+    return [discipline.get_dto() for discipline in disciplines]
