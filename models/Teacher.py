@@ -17,16 +17,18 @@ class Teacher(Base):
     teacher_disciplines = relationship("TeacherDiscipline", back_populates="teacher")
 
     def get_dto(self):
+        disciplines = []
+        if self.teacher_disciplines:
+            disciplines = [{
+                "id": str(td.discipline.id),
+                "name": td.discipline.name,
+                "module_id": str(td.discipline.module_id)
+            } for td in self.teacher_disciplines if td.discipline is not None]
+
         return {
             "id": str(self.id),
             "first_name": self.first_name,
             "surname": self.surname,
             "patronymic": self.patronymic,
-            "disciplines": ([{
-                "id": str(td.discipline.id),
-                "name": td.discipline.name,
-                "module_id": str(td.discipline.module_id)
-            }
-                for td in self.teacher_disciplines if td.discipline is not None]
-                if self.teacher_disciplines else [])
+            "disciplines": disciplines
         }

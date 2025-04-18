@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from models import User
 from database import get_db
 from service import admin_service, user_service
 from .admin_scheme import (
     AddAdminModel, AddModuleModel, UpdateModuleModel,
-    RemoveAdminModel, DeleteModuleModel, CreateTeacherModel, UpdateTeacherModel,
-    DeleteTeacherModel, AppointTeacherDiscipline
+    RemoveAdminModel, DeleteModuleModel
 )
 
 admin_router = APIRouter(prefix="/admin", tags=["admins"])
@@ -79,69 +79,3 @@ async def delete_module(
 async def get_modules(db: AsyncSession = Depends(get_db)):
     module = await admin_service.get_modules(db)
     return module
-
-
-@admin_router.post("/teacher/create")
-async def create_teacher(
-        data: CreateTeacherModel,
-        current_user: dict = Depends(user_service.get_current_user),
-        db: AsyncSession = Depends(get_db)
-):
-    teacher = await admin_service.create_teacher(
-        db, current_user, data.first_name,
-        data.surname, data.patronymic
-    )
-    return teacher
-
-
-@admin_router.patch("/teacher/update")
-async def update_teacher(
-    data: UpdateTeacherModel,
-    current_user: dict = Depends(user_service.get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    updated_teacher = await admin_service.edit_teacher(
-        db, current_user, data.teacher_id, data.first_name,
-        data.surname, data.patronymic
-    )
-    return updated_teacher
-
-
-@admin_router.delete("/teacher/delete")
-async def delete_teacher(
-    data: DeleteTeacherModel,
-    current_user: dict = Depends(user_service.get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await admin_service.delete_teacher(db, current_user, data.teacher_id,)
-    return result
-
-
-@admin_router.get("/teachers/get")
-async def get_teachers(db: AsyncSession = Depends(get_db)):
-    teachers = await admin_service.get_teachers(db)
-    return teachers
-
-
-@admin_router.post("/teacher/discipline/appoint")
-async def appoint_teacher_discipline(
-        data: AppointTeacherDiscipline,
-        current_user: dict = Depends(user_service.get_current_user),
-        db: AsyncSession = Depends(get_db)
-):
-    teacher = await admin_service.appoint_teacher_discipline(
-        db, current_user, data.teacher_id, data.discipline_id
-    )
-    return teacher
-
-
-@admin_router.delete("/teacher/discipline/remove")
-async def remove_teacher_discipline(
-        data: AppointTeacherDiscipline,
-        current_user: dict = Depends(user_service.get_current_user),
-        db: AsyncSession = Depends(get_db)
-):
-    teacher = await admin_service.remove_teacher_discipline(
-        db, current_user, data.teacher_id, data.discipline_id
-    )
-    return teacher
