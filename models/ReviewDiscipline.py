@@ -1,7 +1,11 @@
 from uuid import uuid4
-from sqlalchemy import Column, ForeignKey, Text, Integer, Float, Enum, Boolean, DateTime, func, CheckConstraint
+from sqlalchemy import (
+    Column, ForeignKey, Text, Integer, select,
+    Float, Enum, Boolean, DateTime, func, CheckConstraint
+)
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, joinedload
+from .ReviewVote import VoteTypeEnum
 
 from database import Base
 import enum
@@ -39,4 +43,40 @@ class ReviewDiscipline(Base):
     practic = relationship("Teacher", foreign_keys=[practic_id])
 
     votes = relationship("ReviewVote", back_populates="review", cascade="all, delete-orphan")
-    review_comments = relationship("ReviewComment", back_populates="review", cascade="all, delete-orphan")
+
+    @classmethod
+    def get_joined_data(cls):
+        stmt = select(cls).options(
+            joinedload(cls.author),
+            joinedload(cls.lector),
+            joinedload(cls.practic),
+        )
+        return stmt
+
+    def get_dto(self):
+        author_info = None
+        if self.user_id and not self.is_anonymous:
+            author_info = {
+                "id": str(self.user_id),
+                "name": f"{self.author.surname} {self.author.first_name}"
+                if self.author else "Unknown"
+            }
+
+        return {
+            "id": str(self.id),
+            "grade": self.grade,
+            "comment": self.comment,
+            "status": self.status.value,
+            "created_at": self.created_at.isoformat(),
+            "author": author_info,
+            "lector": {
+                "id": str(self.lector_id),
+                "name": f"{self.lector.surname} {self.lector.first_name}"
+            } if self.lector else None,
+            "practic": {
+                "id": str(self.practic_id),
+                "name": f"{self.practic.surname} {self.practic.first_name}"
+            } if self.practic else None,
+            "offensive_score": self.offensive_score,
+            "is_anonymous": self.is_anonymous
+        }

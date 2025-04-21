@@ -11,6 +11,5 @@ from .TeacherDiscipline import TeacherDiscipline
 from .Favorite import Favorite
 from .ReviewDiscipline import ReviewStatusEnum
 from .ReviewDiscipline import ReviewDiscipline
-from .ReviewComment import ReviewComment
 from .ReviewVote import VoteTypeEnum
 from .ReviewVote import ReviewVote

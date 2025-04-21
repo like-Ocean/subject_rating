@@ -133,6 +133,33 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     return user.get_dto()
 
 
+async def get_current_user_optional(
+        request: Request,
+        db: AsyncSession = Depends(get_db)
+):
+    token = request.cookies.get("session")
+    if not token:
+        return None
+
+    try:
+        result = await db.execute(select(Session).where(Session.session == token))
+        session = result.scalars().first()
+        if not session:
+            return None
+
+        res = await db.execute(
+            select(User)
+            .options(
+                joinedload(User.user_roles).joinedload(UserRole.role)
+            )
+            .where(User.id == session.user_id)
+        )
+        user = res.scalars().first()
+        return user.get_dto() if user else None
+    except Exception as e:
+        return None
+
+
 async def change_user(
         user_id: str,
         first_name: str | None = None,

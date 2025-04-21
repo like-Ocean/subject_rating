@@ -1,5 +1,5 @@
 from uuid import uuid4
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from database import Base
@@ -15,12 +15,10 @@ class User(Base):
     patronymic = Column(String(50), nullable=True)
     email = Column(String(100), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=False)
-    is_block = Column(Boolean, default=False)
 
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     reviews = relationship("ReviewDiscipline", back_populates="author")
     favorites = relationship("Favorite", back_populates="user", cascade="all, delete-orphan")
-    comments = relationship("ReviewComment", back_populates="author", cascade="all, delete-orphan")
     votes = relationship("ReviewVote", back_populates="user", cascade="all, delete-orphan")
     user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", lazy="joined")
 
@@ -37,7 +35,6 @@ class User(Base):
             "surname": self.surname,
             "patronymic": self.patronymic,
             "email": self.email,
-            "is_block": self.is_block,
             "roles": [user_role.role.name.value for user_role in self.user_roles]
         }
 
