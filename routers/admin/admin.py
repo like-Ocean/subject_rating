@@ -24,7 +24,7 @@ async def appoint_admin(
     return updated_user
 
 
-@admin_router.patch("/admin/remove")
+@admin_router.patch("/remove")
 async def remove_admin(
     data: RemoveAdminModel,
     current_user: User = Depends(user_service.get_current_user),
@@ -75,7 +75,7 @@ async def delete_module(
     return result
 
 
-@admin_router.get("/modules/get")
+@admin_router.get("/public/modules/get")
 async def get_modules(db: AsyncSession = Depends(get_db)):
     module = await admin_service.get_modules(db)
     return module

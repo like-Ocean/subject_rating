@@ -92,7 +92,8 @@ async def create_review(
 
 
 # получился хайп, узнать как для фронта удобней 1 роут с опцией или 2 разных роута
-# TODO: сделать пагинацию и page_size на всех get запросах
+# TODO: сделать пагинацию и page_size на всех get запросах. Написать функционал отправки
+#  письма на почту если забыл пароль
 # если роут только для админа написать там /admin
 async def get_all_reviews(
     db: AsyncSession,
@@ -123,7 +124,10 @@ async def get_reviews_by_status(
     page_size: int = 20
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
-        raise HTTPException(status_code=403, detail="Only super-admin or admin can add module")
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can get reviews by status"
+        )
 
     result = await db.execute(
         ReviewDiscipline.get_joined_data()
@@ -142,7 +146,7 @@ async def update_review_status(
         current_user: User
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
-        raise HTTPException(status_code=403, detail="Only super-admin or admin can add module")
+        raise HTTPException(status_code=403, detail="Only super-admin or admin can update status")
 
     result = await db.execute(
         ReviewDiscipline.get_joined_data()

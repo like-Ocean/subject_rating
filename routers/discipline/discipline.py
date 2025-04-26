@@ -12,10 +12,10 @@ from .discipline_scheme import (
 from service import user_service
 
 
-discipline_router = APIRouter(prefix="/discipline", tags=["disciplines"])
+discipline_router = APIRouter(prefix="/disciplines", tags=["disciplines"])
 
 
-@discipline_router.post("/create")
+@discipline_router.post("/admin/discipline/create")
 async def create_discipline(
         data: CreateDisciplineModel,
         current_user: User = Depends(user_service.get_current_user),
@@ -29,7 +29,7 @@ async def create_discipline(
     return discipline
 
 
-@discipline_router.patch("/update")
+@discipline_router.patch("/admin/discipline/update")
 async def update_discipline(
         data: UpdateDisciplineModel,
         current_user: User = Depends(user_service.get_current_user),
@@ -43,7 +43,7 @@ async def update_discipline(
     return discipline
 
 
-@discipline_router.delete("/delete")
+@discipline_router.delete("/admin/discipline/delete")
 async def delete_discipline(
     data: DeleteDisciplineModel,
     current_user: User = Depends(user_service.get_current_user),
@@ -53,7 +53,7 @@ async def delete_discipline(
     return result
 
 
-@discipline_router.get("/disciplines/get")
+@discipline_router.get("/get")
 async def get_disciplines(db: AsyncSession = Depends(get_db)):
     return await discipline_service.get_disciplines(db)
 

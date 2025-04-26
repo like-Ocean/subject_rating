@@ -11,10 +11,10 @@ from .teacher_scheme import (
 )
 
 
-teacher_router = APIRouter(prefix="/teacher", tags=["teachers"])
+teacher_router = APIRouter(prefix="/teachers", tags=["teachers"])
 
 
-@teacher_router.post("/create")
+@teacher_router.post("/admin/teacher/create")
 async def create_teacher(
         data: CreateTeacherModel,
         current_user: dict = Depends(user_service.get_current_user),
@@ -27,7 +27,7 @@ async def create_teacher(
     return teacher
 
 
-@teacher_router.patch("/update")
+@teacher_router.patch("/admin/teacher/update")
 async def update_teacher(
     data: UpdateTeacherModel,
     current_user: User = Depends(user_service.get_current_user),
@@ -40,7 +40,7 @@ async def update_teacher(
     return updated_teacher
 
 
-@teacher_router.delete("/delete")
+@teacher_router.delete("/admin/teacher/delete")
 async def delete_teacher(
     data: DeleteTeacherModel,
     current_user: User = Depends(user_service.get_current_user),
@@ -50,13 +50,13 @@ async def delete_teacher(
     return result
 
 
-@teacher_router.get("/teachers/get")
+@teacher_router.get("/get")
 async def get_teachers(db: AsyncSession = Depends(get_db)):
     teachers = await teacher_service.get_teachers(db)
     return teachers
 
 
-@teacher_router.get("/by-discipline/{discipline_id}")
+@teacher_router.get("/{discipline_id}/get-by-discipline")
 async def get_teachers_by_discipline(
     discipline_id: str,
     db: AsyncSession = Depends(get_db)
@@ -64,7 +64,7 @@ async def get_teachers_by_discipline(
     return await teacher_service.get_teachers_by_discipline(db, discipline_id)
 
 
-@teacher_router.post("/discipline/appoint")
+@teacher_router.post("/admin/teacher/discipline/appoint")
 async def appoint_teacher_discipline(
         data: AppointTeacherDisciplines,
         current_user: User = Depends(user_service.get_current_user),
@@ -77,7 +77,7 @@ async def appoint_teacher_discipline(
     return teacher
 
 
-@teacher_router.delete("/discipline/remove")
+@teacher_router.delete("/admin/teacher/discipline/remove")
 async def remove_teacher_discipline(
         data: RemoveTeacherDiscipline,
         current_user: User = Depends(user_service.get_current_user),

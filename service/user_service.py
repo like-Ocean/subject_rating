@@ -257,7 +257,7 @@ async def delete_user(
         current_user: dict
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
-        raise HTTPException(status_code=403, detail="Only super-admin or admin can add module")
+        raise HTTPException(status_code=403, detail="Only super-admin or admin can delete user")
 
     result = await db.execute(
         select(User)

@@ -8,7 +8,7 @@ from database import get_db
 from .review_discipline_scheme import CreateReviewModel, UpdateReviewStatus
 
 
-review_router = APIRouter(prefix="/review", tags=["reviews"])
+review_router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
 @review_router.get("")
@@ -36,7 +36,7 @@ async def create_review(
     return review
 
 
-@review_router.patch("/{review_id}/status")
+@review_router.patch("/admin/{review_id}/status/edit")
 async def change_review_status(
     review_id: str,
     data: UpdateReviewStatus,
@@ -48,7 +48,7 @@ async def change_review_status(
     )
 
 
-@review_router.get("/admin/moderation")
+@review_router.get("/review/admin/moderation")
 async def get_moderation_reviews(
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(user_service.get_current_user),
