@@ -1,0 +1,19 @@
+services:  
+  postgresql:
+    env_file: .env
+    image: postgres:latest
+    environment: 
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+  fastapi: 
+    build: .
+    env_file: .env
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    environment:
+      DB_HOST: postgresql
+    depends_on:
+      - postgresql
