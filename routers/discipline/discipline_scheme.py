@@ -35,3 +35,14 @@ class DeleteDisciplineModel(BaseModel):
 
 class AddFavorite(BaseModel):
     discipline_id: str = Field(...)
+
+
+class SortOrder(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class SortBy(str, Enum):
+    rating = "rating"
+    reviews = "reviews"
+    latest = "latest"

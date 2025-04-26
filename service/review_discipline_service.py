@@ -13,7 +13,15 @@ from models import (
 swear_checker = SwearingCheck()
 
 
-# TODO: не отменяются комменты при мате СДЕЛАТЬ
+def get_review_status(offensive_score: float) -> ReviewStatusEnum:
+    if offensive_score >= 0.99:
+        return ReviewStatusEnum.rejected
+    if offensive_score >= 0.50:
+        return ReviewStatusEnum.pending
+    return ReviewStatusEnum.published
+
+
+# TODO: (если проверка выдала 1 и пользователь не авторизован, отзыв сохранять или нет?)
 async def create_review(
         db: AsyncSession, current_user: Optional[User],
         discipline_id: str, grade: int, comment: str,
@@ -43,22 +51,18 @@ async def create_review(
     offensive_score = 0.0
     if comment:
         try:
-            offensive_score = swear_checker.predict_proba([comment])[0]
-        except Exception as e:
-            raise HTTPException(500, "Content analysis failed")
+            raw_score = swear_checker.predict_proba([comment])[0]
+        except Exception:
+            raise HTTPException(status_code=500, detail="Content analysis failed")
+        offensive_score = round(raw_score, 4)
 
-    status = ReviewStatusEnum.published
+    status = get_review_status(offensive_score)
+
     user_id = None
     final_anonymous = True
-
     if current_user:
         user_id = current_user["id"]
         final_anonymous = is_anonymous
-        if offensive_score >= 0.5:
-            status = ReviewStatusEnum.pending
-    else:
-        if offensive_score >= 0.5:
-            status = ReviewStatusEnum.pending
 
     new_review = ReviewDiscipline(
         user_id=user_id,

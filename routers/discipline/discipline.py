@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from service import discipline_service
-from models import User
+from models import User, DisciplineFormatEnum
 from database import get_db
 from .discipline_scheme import (
     CreateDisciplineModel, UpdateDisciplineModel,
-    DeleteDisciplineModel, AddFavorite
+    DeleteDisciplineModel, AddFavorite, SortOrder,
+    SortBy
 )
 from service import user_service
 
@@ -54,6 +56,38 @@ async def delete_discipline(
 @discipline_router.get("/disciplines/get")
 async def get_disciplines(db: AsyncSession = Depends(get_db)):
     return await discipline_service.get_disciplines(db)
+
+
+@discipline_router.get("/search")
+async def search_disciplines(
+    db: AsyncSession = Depends(get_db),
+    name_search: Optional[str] = Query(
+        None,
+        description="Поиск по названию дисциплины"
+    ),
+    module_search: Optional[str] = Query(
+        None,
+        description="Поиск по названию модуля"
+    ),
+    format_filter: Optional[DisciplineFormatEnum] = Query(
+        None,
+        description="Фильтр по формату дисциплины"
+    ),
+    sort_by: SortBy = Query(
+        SortBy.rating,
+        description="Сортировать по"
+    ),
+    sort_order: SortOrder = Query(
+        SortOrder.desc,
+        description="Порядок сортировки"
+    )
+):
+    return await discipline_service.search_disciplines(
+        db,name_search,module_search,
+        format_filter.value if format_filter else None,
+        sort_by.value,
+        sort_order.value
+    )
 
 
 @discipline_router.get("/{discipline_id}")

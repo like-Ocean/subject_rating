@@ -2,6 +2,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
+from datetime import datetime
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import DisciplineFormatEnum, Module, Discipline, User, Favorite
@@ -191,15 +192,67 @@ async def get_discipline(db: AsyncSession, discipline_id: str):
     return discipline.get_dto()
 
 
-# TODO: не тестил( ну и не написал ещё :) )
 async def search_disciplines(
     db: AsyncSession,
-    module_search: Optional[str] = None,  # Фильтр по наименованию модуля (подстрока)
+    name_search: Optional[str] = None,
+    module_search: Optional[str] = None,
     format_filter: Optional[str] = None,
     sort_by: Optional[str] = "rating",    # "rating", "reviews", "latest"
-    sort_order: Optional[str] = "desc"      # "asc" или "desc"
+    sort_order: Optional[str] = "desc"     # "asc" или "desc"
 ):
-    pass
+    result = await db.execute(Discipline.get_joined_data())
+    disciplines = result.scalars().all()
+
+    filtered = []
+    for discipline in disciplines:
+        if name_search and name_search.lower() not in discipline.name.lower():
+            continue
+
+        module_name = discipline.module.name.lower() if discipline.module else ""
+        if module_search and module_search.lower() not in module_name:
+            continue
+
+        if format_filter:
+            try:
+                valid_format = DisciplineFormatEnum(format_filter)
+            except ValueError:
+                raise HTTPException(400, detail="Invalid format filter")
+            if discipline.format != valid_format:
+                continue
+
+        filtered.append(discipline)
+
+    if sort_by not in ("rating", "reviews", "latest"):
+        raise HTTPException(
+            400,
+            detail="sort_by must be 'rating', 'reviews' or 'latest'"
+        )
+    if sort_order not in ("asc", "desc"):
+        raise HTTPException(
+            400,
+            detail="sort_order must be 'asc' or 'desc'"
+        )
+    reverse = (sort_order == "desc")
+
+    def key_rating(discipline: Discipline):
+        grades = [review.grade for review in discipline.reviews if review.grade is not None]
+        return sum(grades) / len(grades) if grades else 0.0
+
+    def key_reviews(discipline: Discipline):
+        return len(discipline.reviews)
+
+    def key_latest(discipline: Discipline):
+        dates = [review.created_at for review in discipline.reviews]
+        return max(dates) if dates else datetime.min
+
+    key_map = {
+        "rating": key_rating,
+        "reviews": key_reviews,
+        "latest": key_latest,
+    }
+
+    sorted_disciplines = sorted(filtered, key=key_map[sort_by], reverse=reverse)
+    return [discipline.get_dto() for discipline in sorted_disciplines]
 
 
 async def add_favorite(db: AsyncSession, user_id: str, discipline_id: str):
