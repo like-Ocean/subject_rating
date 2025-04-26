@@ -67,7 +67,12 @@ async def edit_password(
         current_user: User = Depends(user_service.get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    await user_service.change_password(user.user_id, user.password, db)
+    await user_service.change_password(
+        user.user_id,
+        user.old_password,
+        user.new_password,
+        db
+    )
     return Response(status_code=200)
 
 

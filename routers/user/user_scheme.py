@@ -24,4 +24,5 @@ class ChangeModel(BaseModel):
 
 class ChangePasswordModel(BaseModel):
     user_id: str = Field(...)
-    password: str = Field(min_length=8)
+    old_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8)

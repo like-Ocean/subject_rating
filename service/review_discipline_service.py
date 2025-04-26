@@ -7,12 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from check_swear import SwearingCheck
 from models import (
     Discipline, ReviewDiscipline, ReviewVote, ReviewStatusEnum,
-    DisciplineFormatEnum, User, Teacher
+    DisciplineFormatEnum, User, Teacher, TeacherDiscipline
 )
 
 swear_checker = SwearingCheck()
 
 
+# TODO: не отменяются комменты при мате СДЕЛАТЬ
 async def create_review(
         db: AsyncSession, current_user: Optional[User],
         discipline_id: str, grade: int, comment: str,
@@ -26,6 +27,18 @@ async def create_review(
     practic = await db.get(Teacher, practic_id)
     if not lector or not practic:
         raise HTTPException(404, "Teacher not found")
+
+    if not await TeacherDiscipline.exists_assignment(db, lector_id, discipline_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Lector is not assigned to this discipline"
+        )
+
+    if not await TeacherDiscipline.exists_assignment(db, practic_id, discipline_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Practic teacher is not assigned to this discipline"
+        )
 
     offensive_score = 0.0
     if comment:
@@ -68,7 +81,10 @@ async def create_review(
         raise HTTPException(400, "Invalid data format")
 
     refreshed = (
-        await db.execute(ReviewDiscipline.get_joined_data())
+        await db.execute(
+            ReviewDiscipline.get_joined_data()
+            .where(ReviewDiscipline.id == new_review.id)
+        )
     ).scalars().first()
 
     return refreshed.get_dto()

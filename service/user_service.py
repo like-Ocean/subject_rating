@@ -201,7 +201,10 @@ async def change_user(
     return user.get_dto()
 
 
-async def change_password(user_id: str, password: str, db: AsyncSession):
+async def change_password(
+        user_id: str, old_password: str,
+        new_password: str, db: AsyncSession
+):
     result = await db.execute(
         select(User)
         .options(
@@ -212,15 +215,18 @@ async def change_password(user_id: str, password: str, db: AsyncSession):
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
-    validate_password(password)
-    user.set_password(password)
+
+    if not user.check_password(old_password):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
+
+    validate_password(new_password)
+    user.set_password(new_password)
+
     await db.commit()
     await db.refresh(user)
     return user.get_dto()
 
 
-# TODO: возможно, нужно спросить, могут ли другие пользователи смотреть профили других пользователей
-# или эта функция нужна только админу.
 async def get_users(db: AsyncSession):
     result = await db.execute(
         select(User).options(
@@ -245,6 +251,6 @@ async def get_user(user_id: str, db: AsyncSession):
     return user.get_dto()
 
 
-# удаление юзера(только для админов),
+# TODO: удаление юзера(только для админов),
 async def delete_user(db: AsyncSession, user_id: str):
     ...

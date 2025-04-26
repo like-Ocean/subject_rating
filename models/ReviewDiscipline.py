@@ -58,7 +58,9 @@ class ReviewDiscipline(Base):
         if self.user_id and not self.is_anonymous:
             author_info = {
                 "id": str(self.user_id),
-                "name": f"{self.author.surname} {self.author.first_name}"
+                "first_name": self.author.first_name,
+                "surname": self.author.surname,
+                "patronymic": self.author.patronymic
                 if self.author else "Unknown"
             }
 
@@ -71,11 +73,15 @@ class ReviewDiscipline(Base):
             "author": author_info,
             "lector": {
                 "id": str(self.lector_id),
-                "name": f"{self.lector.surname} {self.lector.first_name}"
+                "first_name": self.lector.first_name,
+                "surname": self.lector.surname,
+                "patronymic": self.lector.patronymic,
             } if self.lector else None,
             "practic": {
                 "id": str(self.practic_id),
-                "name": f"{self.practic.surname} {self.practic.first_name}"
+                "first_name": self.lector.first_name,
+                "surname": self.lector.surname,
+                "patronymic": self.lector.patronymic,
             } if self.practic else None,
             "offensive_score": self.offensive_score,
             "is_anonymous": self.is_anonymous
