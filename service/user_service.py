@@ -1,5 +1,6 @@
 from uuid import uuid4
 import re
+from sqlalchemy.exc import SQLAlchemyError
 from database import get_db
 from fastapi import HTTPException, Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +9,6 @@ from models import User, Session, Role, RoleEnum, UserRole
 from sqlalchemy.orm import selectinload, joinedload
 
 
-# TODO: Удаление юзера
 def validate_password(password: str):
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
@@ -251,6 +251,43 @@ async def get_user(user_id: str, db: AsyncSession):
     return user.get_dto()
 
 
-# TODO: удаление юзера(только для админов),
-async def delete_user(db: AsyncSession, user_id: str):
-    ...
+async def delete_user(
+        db: AsyncSession,
+        user_id: str,
+        current_user: dict
+):
+    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+        raise HTTPException(status_code=403, detail="Only super-admin or admin can add module")
+
+    result = await db.execute(
+        select(User)
+        .options(
+            selectinload(User.user_roles).joinedload(UserRole.role),
+            selectinload(User.reviews),
+            selectinload(User.favorites),
+            selectinload(User.votes),
+            selectinload(User.sessions)
+        )
+        .where(User.id == user_id)
+    )
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    if user_id == current_user["id"]:
+        raise HTTPException(400, "Self-deletion is not allowed")
+
+    target_roles = {role.role.name for role in user.user_roles}
+    if {"ADMIN", "SUPER-ADMIN"}.intersection(target_roles):
+        if "SUPER-ADMIN" not in current_user.get("roles", []):
+            raise HTTPException(403, "Only SUPER-ADMIN can delete other admins")
+
+    try:
+        await db.delete(user)
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(500, f"Database error: {str(e)}")
+
+    return {"status": "The user was successfully deleted"}

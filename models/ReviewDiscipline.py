@@ -6,6 +6,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, joinedload
 from .ReviewVote import VoteTypeEnum
+from models import Discipline
 
 from database import Base
 import enum
@@ -50,6 +51,7 @@ class ReviewDiscipline(Base):
             joinedload(cls.author),
             joinedload(cls.lector),
             joinedload(cls.practic),
+            joinedload(cls.discipline).joinedload(Discipline.module)
         )
         return stmt
 
@@ -71,6 +73,14 @@ class ReviewDiscipline(Base):
             "status": self.status.value,
             "created_at": self.created_at.isoformat(),
             "author": author_info,
+            "discipline": {
+                "id": str(self.discipline.id),
+                "name": self.discipline.name,
+                "module": {
+                    "id": str(self.discipline.module.id),
+                    "name": self.discipline.module.name
+                }
+            },
             "lector": {
                 "id": str(self.lector_id),
                 "first_name": self.lector.first_name,

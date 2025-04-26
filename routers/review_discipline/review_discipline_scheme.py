@@ -1,5 +1,6 @@
 from pydantic import BaseModel, UUID4, Field
 from typing import Optional
+from models.ReviewDiscipline import ReviewStatusEnum
 
 
 class CreateReviewModel(BaseModel):
@@ -9,3 +10,7 @@ class CreateReviewModel(BaseModel):
     is_anonymous: bool = False
     lector_id: UUID4
     practic_id: UUID4
+
+
+class UpdateReviewStatus(BaseModel):
+    new_status: ReviewStatusEnum

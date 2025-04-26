@@ -9,5 +9,5 @@ routes = [
     admin.admin_router,
     discipline.discipline_router,
     teacher.teacher_router,
-    review_discipline.review_discipline_router
+    review_discipline.review_router
 ]

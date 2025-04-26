@@ -1,8 +1,6 @@
 from typing import Optional
 from fastapi import HTTPException
-from sqlalchemy import select, and_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from check_swear import SwearingCheck
 from models import (
@@ -21,7 +19,7 @@ def get_review_status(offensive_score: float) -> ReviewStatusEnum:
     return ReviewStatusEnum.published
 
 
-# TODO: (если проверка выдала 1 и пользователь не авторизован, отзыв сохранять или нет?)
+# (если проверка выдала 1 и пользователь не авторизован, отзыв сохранять или нет?)
 async def create_review(
         db: AsyncSession, current_user: Optional[User],
         discipline_id: str, grade: int, comment: str,
@@ -84,11 +82,82 @@ async def create_review(
         await db.rollback()
         raise HTTPException(400, "Invalid data format")
 
-    refreshed = (
-        await db.execute(
-            ReviewDiscipline.get_joined_data()
-            .where(ReviewDiscipline.id == new_review.id)
-        )
-    ).scalars().first()
+    result = await db.execute(
+        ReviewDiscipline.get_joined_data()
+        .where(ReviewDiscipline.id == new_review.id)
+    )
+    refreshed = result.scalars().first()
 
     return refreshed.get_dto()
+
+
+# получился хайп, узнать как для фронта удобней 1 роут с опцией или 2 разных роута
+# TODO: сделать пагинацию и page_size на всех get запросах
+# если роут только для админа написать там /admin
+async def get_all_reviews(
+    db: AsyncSession,
+    discipline_id: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 40
+):
+    query = ReviewDiscipline.get_joined_data().where(
+        ReviewDiscipline.status == ReviewStatusEnum.published
+    )
+
+    if discipline_id:
+        query = query.where(ReviewDiscipline.discipline_id == discipline_id)
+
+    result = await db.execute(
+        query.order_by(ReviewDiscipline.created_at.desc())
+        .limit(page_size)
+        .offset((page-1)*page_size)
+    )
+    return [review.get_dto() for review in result.unique().scalars().all()]
+
+
+async def get_reviews_by_status(
+    db: AsyncSession,
+    current_user: User,
+    status: ReviewStatusEnum,
+    page: int = 1,
+    page_size: int = 20
+):
+    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+        raise HTTPException(status_code=403, detail="Only super-admin or admin can add module")
+
+    result = await db.execute(
+        ReviewDiscipline.get_joined_data()
+        .where(ReviewDiscipline.status == status)
+        .order_by(ReviewDiscipline.created_at.desc())
+        .limit(page_size)
+        .offset((page-1)*page_size)
+    )
+    return [review.get_dto() for review in result.unique().scalars().all()]
+
+
+async def update_review_status(
+        db: AsyncSession,
+        review_id: str,
+        new_status: ReviewStatusEnum,
+        current_user: User
+):
+    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+        raise HTTPException(status_code=403, detail="Only super-admin or admin can add module")
+
+    result = await db.execute(
+        ReviewDiscipline.get_joined_data()
+        .where(ReviewDiscipline.id == review_id)
+    )
+    review = result.unique().scalar_one_or_none()
+    if not review:
+        raise HTTPException(404, "Review not found")
+
+    review.status = new_status
+    try:
+        await db.commit()
+        await db.refresh(review)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(400, "Invalid status transition")
+
+    return review.get_dto()

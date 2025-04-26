@@ -86,3 +86,12 @@ async def get_all_user(db: AsyncSession = Depends(get_db)):
 async def get_user(user_id, db: AsyncSession = Depends(get_db)):
     user_data = await user_service.get_user(user_id, db)
     return user_data
+
+
+@user_router.delete("/admin/user/{user_id}/delete")
+async def delete_user(
+    user_id: str,
+    current_user: dict = Depends(user_service.get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    return await user_service.delete_user(db, user_id, current_user)
