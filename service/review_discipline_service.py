@@ -94,12 +94,11 @@ async def create_review(
 # получился хайп, узнать как для фронта удобней 1 роут с опцией или 2 разных роута
 # TODO: сделать пагинацию и page_size на всех get запросах. Написать функционал отправки
 #  письма на почту если забыл пароль
-# если роут только для админа написать там /admin
 async def get_all_reviews(
-    db: AsyncSession,
-    discipline_id: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 40
+        db: AsyncSession,
+        discipline_id: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 40
 ):
     query = ReviewDiscipline.get_joined_data().where(
         ReviewDiscipline.status == ReviewStatusEnum.published
@@ -111,17 +110,17 @@ async def get_all_reviews(
     result = await db.execute(
         query.order_by(ReviewDiscipline.created_at.desc())
         .limit(page_size)
-        .offset((page-1)*page_size)
+        .offset((page - 1) * page_size)
     )
     return [review.get_dto() for review in result.unique().scalars().all()]
 
 
 async def get_reviews_by_status(
-    db: AsyncSession,
-    current_user: User,
-    status: ReviewStatusEnum,
-    page: int = 1,
-    page_size: int = 20
+        db: AsyncSession,
+        current_user: User,
+        status: ReviewStatusEnum,
+        page: int = 1,
+        page_size: int = 20
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
         raise HTTPException(
@@ -134,7 +133,7 @@ async def get_reviews_by_status(
         .where(ReviewDiscipline.status == status)
         .order_by(ReviewDiscipline.created_at.desc())
         .limit(page_size)
-        .offset((page-1)*page_size)
+        .offset((page - 1) * page_size)
     )
     return [review.get_dto() for review in result.unique().scalars().all()]
 

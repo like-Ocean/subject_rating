@@ -20,9 +20,9 @@ class CreateDisciplineModel(BaseModel):
 
 
 class UpdateDisciplineModel(BaseModel):
-    discipline_id: str = Field(...)
+    id: str = Field(..., description="discipline_id")
     name: Optional[str] = None
-    format_value: Optional[DisciplineFormat] = Field(None)
+    format: Optional[DisciplineFormat] = Field(None)
     module_id: Optional[str] = Field(None)
     description: Optional[str] = None
     modeus_link: Optional[str] = None
@@ -30,11 +30,11 @@ class UpdateDisciplineModel(BaseModel):
 
 
 class DeleteDisciplineModel(BaseModel):
-    discipline_id: str = Field(...)
+    id: str = Field(..., description="discipline_id")
 
 
 class AddFavorite(BaseModel):
-    discipline_id: str = Field(...)
+    id: str = Field(..., description="discipline_id")
 
 
 class SortOrder(str, Enum):

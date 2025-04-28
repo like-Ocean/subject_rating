@@ -71,7 +71,6 @@ class ReviewDiscipline(Base):
             "grade": self.grade,
             "comment": self.comment,
             "status": self.status.value,
-            "created_at": self.created_at.isoformat(),
             "author": author_info,
             "discipline": {
                 "id": str(self.discipline.id),
@@ -89,10 +88,11 @@ class ReviewDiscipline(Base):
             } if self.lector else None,
             "practic": {
                 "id": str(self.practic_id),
-                "first_name": self.lector.first_name,
-                "surname": self.lector.surname,
-                "patronymic": self.lector.patronymic,
+                "first_name": self.practic.first_name,
+                "surname": self.practic.surname,
+                "patronymic": self.practic.patronymic,
             } if self.practic else None,
             "offensive_score": self.offensive_score,
-            "is_anonymous": self.is_anonymous
+            "is_anonymous": self.is_anonymous,
+            "created_at": self.created_at.isoformat(),
         }

@@ -13,4 +13,5 @@ class CreateReviewModel(BaseModel):
 
 
 class UpdateReviewStatus(BaseModel):
-    new_status: ReviewStatusEnum
+    id: str = Field(..., description="review_id")
+    status: ReviewStatusEnum

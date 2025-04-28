@@ -15,7 +15,7 @@ class Authorization(BaseModel):
 
 
 class ChangeModel(BaseModel):
-    user_id: str = Field(...)
+    id: str = Field(..., description="user_id")
     first_name: str | None = Field(None)
     surname: str | None = Field(None)
     patronymic: str | None = Field(None)
@@ -23,6 +23,6 @@ class ChangeModel(BaseModel):
 
 
 class ChangePasswordModel(BaseModel):
-    user_id: str = Field(...)
+    id: str = Field(..., description="user_id")
     old_password: str = Field(min_length=8)
     new_password: str = Field(min_length=8)

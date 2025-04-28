@@ -2,7 +2,7 @@ from uuid import uuid4
 import re
 from sqlalchemy.exc import SQLAlchemyError
 from database import get_db
-from fastapi import HTTPException, Request, Depends
+from fastapi import HTTPException, Request, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from models import User, Session, Role, RoleEnum, UserRole
@@ -290,4 +290,4 @@ async def delete_user(
         await db.rollback()
         raise HTTPException(500, f"Database error: {str(e)}")
 
-    return {"status": "The user was successfully deleted"}
+    return Response(status_code=200)

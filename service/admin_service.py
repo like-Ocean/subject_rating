@@ -1,4 +1,4 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -137,7 +137,7 @@ async def delete_module(module_id: str, current_user: dict, db: AsyncSession):
     await db.delete(module)
     await db.commit()
 
-    return {"detail": "Module deleted successfully"}
+    return Response(status_code=200)
 
 
 async def get_modules(db: AsyncSession):

@@ -1,10 +1,7 @@
 from typing import Optional
-
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from models import Teacher, TeacherDiscipline, Discipline
 
 
@@ -33,9 +30,7 @@ async def create_teacher(
     await db.commit()
 
     result = await db.execute(
-        select(Teacher)
-        .options(selectinload(Teacher.teacher_disciplines))
-        .where(Teacher.id == new_teacher.id)
+        Teacher.get_joined_data().where(Teacher.id == new_teacher.id)
     )
     updated_teacher = result.scalars().first()
 
@@ -71,14 +66,10 @@ async def edit_teacher(
     await db.refresh(teacher)
 
     refreshed = await db.execute(
-        select(Teacher)
-        .options(
-            selectinload(Teacher.teacher_disciplines)
-            .joinedload(TeacherDiscipline.discipline)
-        )
-        .where(Teacher.id == teacher_id)
+        Teacher.get_joined_data().where(Teacher.id == teacher_id)
     )
     updated_teacher = refreshed.scalars().first()
+
     return updated_teacher.get_dto()
 
 
@@ -97,18 +88,13 @@ async def delete_teacher(
 
     await db.delete(teacher)
     await db.commit()
-    return {"detail": "Teacher deleted successfully"}
+    return Response(status_code=200)
 
 
 async def get_teachers(db: AsyncSession):
-    result = await db.execute(
-        select(Teacher).options(
-            selectinload(
-                Teacher.teacher_disciplines
-            ).joinedload(TeacherDiscipline.discipline)
-        )
-    )
+    result = await db.execute(Teacher.get_joined_data())
     teachers = result.unique().scalars().all()
+
     return [teacher.get_dto() for teacher in teachers]
 
 
@@ -124,13 +110,9 @@ async def get_teachers_by_discipline(
         raise HTTPException(404, "Discipline not found")
 
     result = await db.execute(
-        select(Teacher)
+        Teacher.get_joined_data()
         .join(TeacherDiscipline)
         .where(TeacherDiscipline.discipline_id == discipline_id)
-        .options(
-            selectinload(Teacher.teacher_disciplines)
-            .joinedload(TeacherDiscipline.discipline)
-        )
     )
     teachers = result.scalars().all()
 
@@ -185,15 +167,10 @@ async def appoint_teacher_disciplines(
     await db.commit()
 
     result = await db.execute(
-        select(Teacher)
-        .options(
-            selectinload(Teacher.teacher_disciplines)
-            .joinedload(TeacherDiscipline.discipline)
-        )
-        .where(Teacher.id == teacher_id)
+        Teacher.get_joined_data().where(Teacher.id == teacher_id)
     )
-
     updated_teacher = result.scalars().first()
+
     return updated_teacher.get_dto()
 
 
@@ -231,9 +208,8 @@ async def remove_teacher_discipline(
     await db.commit()
 
     teacher_result = await db.execute(
-        select(Teacher).options(
-            selectinload(Teacher.teacher_disciplines).joinedload(TeacherDiscipline.discipline)
-        ).where(Teacher.id == teacher_id)
+        Teacher.get_joined_data().where(Teacher.id == teacher_id)
     )
     teacher = teacher_result.scalars().first()
+
     return teacher.get_dto()

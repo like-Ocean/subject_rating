@@ -1,8 +1,9 @@
 from uuid import uuid4
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, select
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
-
+from sqlalchemy.orm import relationship, selectinload
+from .TeacherDiscipline import TeacherDiscipline
+from .Discipline import Discipline
 from database import Base
 
 
@@ -16,14 +17,26 @@ class Teacher(Base):
 
     teacher_disciplines = relationship("TeacherDiscipline", back_populates="teacher")
 
+    @classmethod
+    def get_joined_data(cls):
+        return select(cls).options(
+            selectinload(cls.teacher_disciplines)
+            .joinedload(TeacherDiscipline.discipline)
+            .joinedload(Discipline.module)
+        )
+
     def get_dto(self):
         disciplines = []
-        if self.teacher_disciplines:
-            disciplines = [{
-                "id": str(td.discipline.id),
-                "name": td.discipline.name,
-                "module_id": str(td.discipline.module_id)
-            } for td in self.teacher_disciplines if td.discipline is not None]
+        for td in self.teacher_disciplines:
+            if td.discipline and td.discipline.module:
+                disciplines.append({
+                    "id": str(td.discipline.id),
+                    "name": td.discipline.name,
+                    "module": {
+                        "id": str(td.discipline.module.id),
+                        "name": td.discipline.module.name
+                    }
+                })
 
         return {
             "id": str(self.id),

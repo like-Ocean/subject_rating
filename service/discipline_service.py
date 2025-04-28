@@ -1,7 +1,6 @@
 from typing import Optional
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
 from datetime import datetime
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,15 +73,15 @@ async def create_discipline(
 
 
 async def update_discipline(
-    db: AsyncSession,
-    current_user: dict,
-    discipline_id: str,
-    name: Optional[str] = None,
-    format_value: Optional[str] = None,
-    module_id: Optional[str] = None,
-    description: Optional[str] = None,
-    modeus_link: Optional[str] = None,
-    presentation_link: Optional[str] = None,
+        db: AsyncSession,
+        current_user: dict,
+        discipline_id: str,
+        name: Optional[str] = None,
+        format_value: Optional[str] = None,
+        module_id: Optional[str] = None,
+        description: Optional[str] = None,
+        modeus_link: Optional[str] = None,
+        presentation_link: Optional[str] = None,
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
         raise HTTPException(
@@ -134,6 +133,9 @@ async def update_discipline(
             )
         discipline.name = name
 
+    # Возможно такой вариант изменеия будет лучше
+    # if modeus_link is not None or modeus_link == "":
+    #     discipline.modeus_link = modeus_link
     if description is not None:
         discipline.description = description
     if modeus_link is not None:
@@ -153,9 +155,9 @@ async def update_discipline(
 
 
 async def delete_discipline(
-    db: AsyncSession,
-    current_user: dict,
-    discipline_id: str
+        db: AsyncSession,
+        current_user: dict,
+        discipline_id: str
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
         raise HTTPException(
@@ -171,7 +173,7 @@ async def delete_discipline(
     await db.delete(discipline)
     await db.commit()
 
-    return {"detail": "Discipline deleted successfully"}
+    return Response(status_code=200)
 
 
 async def get_disciplines(db: AsyncSession):
@@ -193,12 +195,12 @@ async def get_discipline(db: AsyncSession, discipline_id: str):
 
 
 async def search_disciplines(
-    db: AsyncSession,
-    name_search: Optional[str] = None,
-    module_search: Optional[str] = None,
-    format_filter: Optional[str] = None,
-    sort_by: Optional[str] = "rating",    # "rating", "reviews", "latest"
-    sort_order: Optional[str] = "desc"     # "asc" или "desc"
+        db: AsyncSession,
+        name_search: Optional[str] = None,
+        module_search: Optional[str] = None,
+        format_filter: Optional[str] = None,
+        sort_by: Optional[str] = "rating",  # "rating", "reviews", "latest"
+        sort_order: Optional[str] = "desc"  # "asc" или "desc"
 ):
     result = await db.execute(Discipline.get_joined_data())
     disciplines = result.scalars().all()
@@ -323,15 +325,16 @@ async def remove_favorite(db: AsyncSession, user_id: str, discipline_id: str):
 
 
 async def get_user_favorites(db: AsyncSession, user_id: str):
+    user_data = await db.execute(select(User).where(User.id == user_id))
+    user = user_data.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     result = await db.execute(
-        select(Discipline)
-        .join(Favorite, Discipline.id == Favorite.discipline_id)
+        Discipline
+        .get_joined_data()
+        .join(Favorite, Favorite.discipline_id == Discipline.id)
         .where(Favorite.user_id == user_id)
-        .options(
-            selectinload(Discipline.module),
-            selectinload(Discipline.reviews),
-            selectinload(Discipline.favorites)
-        )
     )
     disciplines = result.scalars().all()
     return [discipline.get_dto() for discipline in disciplines]
