@@ -4,7 +4,7 @@ from sqlalchemy import (
     Float, Enum, Boolean, DateTime, func, CheckConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, joinedload
+from sqlalchemy.orm import relationship, joinedload, selectinload
 from .ReviewVote import VoteTypeEnum
 from models import Discipline
 
@@ -51,11 +51,16 @@ class ReviewDiscipline(Base):
             joinedload(cls.author),
             joinedload(cls.lector),
             joinedload(cls.practic),
-            joinedload(cls.discipline).joinedload(Discipline.module)
+            joinedload(cls.discipline).joinedload(Discipline.module),
+            selectinload(cls.votes)
         )
         return stmt
 
     def get_dto(self):
+        likes = sum(1 for v in self.votes if v.vote == VoteTypeEnum.like)
+        dislikes = sum(1 for v in self.votes if v.vote == VoteTypeEnum.dislike)
+        total_rating = likes - dislikes
+
         author_info = None
         if self.user_id and not self.is_anonymous:
             author_info = {
@@ -94,5 +99,8 @@ class ReviewDiscipline(Base):
             } if self.practic else None,
             "offensive_score": self.offensive_score,
             "is_anonymous": self.is_anonymous,
+            "likes": likes,
+            "dislikes": dislikes,
+            "total_rating": total_rating,
             "created_at": self.created_at.isoformat(),
         }

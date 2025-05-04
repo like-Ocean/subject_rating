@@ -1,6 +1,7 @@
 from pydantic import BaseModel, UUID4, Field
 from typing import Optional
 from models.ReviewDiscipline import ReviewStatusEnum
+from models.ReviewVote import VoteTypeEnum
 
 
 class CreateReviewModel(BaseModel):
@@ -15,3 +16,21 @@ class CreateReviewModel(BaseModel):
 class UpdateReviewStatus(BaseModel):
     id: str = Field(..., description="review_id")
     status: ReviewStatusEnum
+
+
+class AddVoteModel(BaseModel):
+    id: str = Field(..., description="review_id")
+    vote: VoteTypeEnum
+
+
+class EditReviewModel(BaseModel):
+    id: UUID4 = Field(..., description="review_id")
+    grade: Optional[int] = Field(None, ge=1, le=5)
+    comment: Optional[str] = Field(None, max_length=2000)
+    is_anonymous: Optional[bool] = None
+    lector_id: Optional[UUID4] = None
+    practic_id: Optional[UUID4] = None
+
+
+class DeleteReviewModel(BaseModel):
+    id: str = Field(..., description="review_id")

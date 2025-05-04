@@ -1,11 +1,11 @@
 from typing import Optional
-from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, Response
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from check_swear import SwearingCheck
 from models import (
     Discipline, ReviewDiscipline, ReviewVote, ReviewStatusEnum,
-    DisciplineFormatEnum, User, Teacher, TeacherDiscipline
+    DisciplineFormatEnum, User, Teacher, TeacherDiscipline, VoteTypeEnum
 )
 
 swear_checker = SwearingCheck()
@@ -19,7 +19,6 @@ def get_review_status(offensive_score: float) -> ReviewStatusEnum:
     return ReviewStatusEnum.published
 
 
-# (если проверка выдала 1 и пользователь не авторизован, отзыв сохранять или нет?)
 async def create_review(
         db: AsyncSession, current_user: Optional[User],
         discipline_id: str, grade: int, comment: str,
@@ -89,6 +88,94 @@ async def create_review(
     refreshed = result.scalars().first()
 
     return refreshed.get_dto()
+
+
+async def edit_review(
+        db: AsyncSession,
+        current_user: User,
+        review_id: str,
+        new_grade: Optional[int] = None,
+        new_comment: Optional[str] = None,
+        new_is_anonymous: Optional[bool] = None,
+        new_lector_id: Optional[str] = None,
+        new_practic_id: Optional[str] = None
+):
+    result = await db.execute(
+        ReviewDiscipline.get_joined_data()
+        .where(ReviewDiscipline.id == review_id)
+    )
+    review = result.unique().scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    if not review.user_id or str(review.user_id) != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if new_lector_id or new_practic_id:
+        discipline_id = review.discipline_id
+        if new_lector_id:
+            if not await TeacherDiscipline.exists_assignment(db, new_lector_id, discipline_id):
+                raise HTTPException(400, "New lector not assigned to discipline")
+            review.lector_id = new_lector_id
+
+        if new_practic_id:
+            if not await TeacherDiscipline.exists_assignment(db, new_practic_id, discipline_id):
+                raise HTTPException(400, "New practic teacher not assigned to discipline")
+            review.practic_id = new_practic_id
+
+    if new_grade is not None:
+        review.grade = new_grade
+    if new_comment is not None:
+        review.comment = new_comment
+    if new_is_anonymous is not None:
+        review.is_anonymous = new_is_anonymous
+
+    if new_comment is not None:
+        try:
+            raw_score = swear_checker.predict_proba([new_comment])[0]
+        except Exception:
+            raise HTTPException(500, "Content analysis failed")
+        review.offensive_score = round(raw_score, 4)
+        review.status = get_review_status(review.offensive_score)
+
+    try:
+        await db.commit()
+        await db.refresh(review)
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(400, "Invalid data format")
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(500, f"Database error: {str(e)}")
+
+    return review.get_dto()
+
+
+async def delete_review(db: AsyncSession, current_user: User, review_id: str):
+    result = await db.execute(
+        ReviewDiscipline.get_joined_data()
+        .where(ReviewDiscipline.id == review_id)
+    )
+    review = result.unique().scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    is_author = str(review.user_id) == current_user["id"] if review.user_id else False
+    is_admin = "ADMIN" in current_user.get("roles", [])
+    is_super_admin = "SUPER-ADMIN" in current_user.get("roles", [])
+
+    if not (is_author or is_admin or is_super_admin):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        await db.delete(review)
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    return Response(status_code=200)
 
 
 # получился хайп, узнать как для фронта удобней 1 роут с опцией или 2 разных роута
@@ -164,3 +251,63 @@ async def update_review_status(
         raise HTTPException(400, "Invalid status transition")
 
     return review.get_dto()
+
+
+async def vote_review(
+        db: AsyncSession,
+        review_id: str,
+        current_user: User,
+        vote: VoteTypeEnum
+):
+    review_result = await db.execute(
+        ReviewDiscipline.get_joined_data()
+        .where(ReviewDiscipline.id == review_id)
+    )
+    review = review_result.unique().scalar_one_or_none()
+    if not review:
+        raise HTTPException(404, "Review not found")
+
+    existing_vote = next(
+        (vote for vote in review.votes if str(vote.user_id) == current_user["id"]),
+        None
+    )
+
+    if existing_vote:
+        if existing_vote.vote == vote:
+            await db.delete(existing_vote)
+        else:
+            existing_vote.vote = vote
+    else:
+        new_vote = ReviewVote(
+            review_id=review_id,
+            user_id=current_user["id"],
+            vote=vote
+        )
+        db.add(new_vote)
+
+    try:
+        await db.commit()
+        await db.refresh(review)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, "Failed to process vote")
+
+    return review.get_dto()
+
+
+async def get_my_reviews(
+    db: AsyncSession,
+    current_user: User,
+    page: int = 1,
+    page_size: int = 40
+):
+    query = ReviewDiscipline.get_joined_data().where(
+        ReviewDiscipline.user_id == current_user["id"]
+    )
+    result = await db.execute(
+        query.order_by(ReviewDiscipline.created_at.desc())
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
+
+    return [review.get_dto() for review in result.unique().scalars().all()]
