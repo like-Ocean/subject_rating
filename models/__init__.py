@@ -13,3 +13,4 @@ from .ReviewDiscipline import ReviewStatusEnum
 from .ReviewDiscipline import ReviewDiscipline
 from .ReviewVote import VoteTypeEnum
 from .ReviewVote import ReviewVote
+from .Complaint import Complaint

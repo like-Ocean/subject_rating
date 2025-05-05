@@ -1,18 +1,19 @@
 from typing import Optional
 from fastapi import HTTPException, Response
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from check_swear import SwearingCheck
 from models import (
     Discipline, ReviewDiscipline, ReviewVote, ReviewStatusEnum,
-    DisciplineFormatEnum, User, Teacher, TeacherDiscipline, VoteTypeEnum
+    Complaint, User, Teacher, TeacherDiscipline, VoteTypeEnum
 )
 
 swear_checker = SwearingCheck()
 
 
 def get_review_status(offensive_score: float) -> ReviewStatusEnum:
-    if offensive_score >= 0.99:
+    if offensive_score >= 0.80:
         return ReviewStatusEnum.rejected
     if offensive_score >= 0.50:
         return ReviewStatusEnum.pending
@@ -50,7 +51,10 @@ async def create_review(
         try:
             raw_score = swear_checker.predict_proba([comment])[0]
         except Exception:
-            raise HTTPException(status_code=500, detail="Content analysis failed")
+            raise HTTPException(
+                status_code=500,
+                detail="Content analysis failed"
+            )
         offensive_score = round(raw_score, 4)
 
     status = get_review_status(offensive_score)
@@ -114,13 +118,23 @@ async def edit_review(
     if new_lector_id or new_practic_id:
         discipline_id = review.discipline_id
         if new_lector_id:
-            if not await TeacherDiscipline.exists_assignment(db, new_lector_id, discipline_id):
-                raise HTTPException(400, "New lector not assigned to discipline")
+            if not await TeacherDiscipline.exists_assignment(
+                    db, new_lector_id, discipline_id
+            ):
+                raise HTTPException(
+                    400,
+                    "New lector not assigned to discipline"
+                )
             review.lector_id = new_lector_id
 
         if new_practic_id:
-            if not await TeacherDiscipline.exists_assignment(db, new_practic_id, discipline_id):
-                raise HTTPException(400, "New practic teacher not assigned to discipline")
+            if not await TeacherDiscipline.exists_assignment(
+                    db, new_practic_id, discipline_id
+            ):
+                raise HTTPException(
+                    400,
+                    "New practic teacher not assigned to discipline"
+                )
             review.practic_id = new_practic_id
 
     if new_grade is not None:
@@ -178,7 +192,6 @@ async def delete_review(db: AsyncSession, current_user: User, review_id: str):
     return Response(status_code=200)
 
 
-# получился хайп, узнать как для фронта удобней 1 роут с опцией или 2 разных роута
 # TODO: сделать пагинацию и page_size на всех get запросах. Написать функционал отправки
 #  письма на почту если забыл пароль
 async def get_all_reviews(
@@ -232,7 +245,10 @@ async def update_review_status(
         current_user: User
 ):
     if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
-        raise HTTPException(status_code=403, detail="Only super-admin or admin can update status")
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can update status"
+        )
 
     result = await db.execute(
         ReviewDiscipline.get_joined_data()
@@ -296,10 +312,10 @@ async def vote_review(
 
 
 async def get_my_reviews(
-    db: AsyncSession,
-    current_user: User,
-    page: int = 1,
-    page_size: int = 40
+        db: AsyncSession,
+        current_user: User,
+        page: int = 1,
+        page_size: int = 40
 ):
     query = ReviewDiscipline.get_joined_data().where(
         ReviewDiscipline.user_id == current_user["id"]
@@ -311,3 +327,104 @@ async def get_my_reviews(
     )
 
     return [review.get_dto() for review in result.unique().scalars().all()]
+
+
+async def create_complaint(
+        db: AsyncSession,
+        current_user: User,
+        review_id: str
+):
+    review = await db.get(ReviewDiscipline, review_id)
+    if not review:
+        raise HTTPException(404, "Review not found")
+
+    if review.user_id and str(review.user_id) == current_user["id"]:
+        raise HTTPException(400, "Cannot complain on own review")
+
+    existing_complaint = await Complaint.find_active_complaint(
+        db, review_id, current_user["id"]
+    )
+    if existing_complaint:
+        raise HTTPException(400, "Complaint already exists")
+
+    new_complaint = Complaint(
+        review_id=review_id,
+        user_id=current_user["id"]
+    )
+    db.add(new_complaint)
+
+    try:
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(500, "Database error")
+
+    return {"message": "Complaint sent successfully"}
+
+
+async def get_pending_complaints(
+        db: AsyncSession,
+        current_user: User,
+        page: int = 1,
+        page_size: int = 20,
+):
+    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can access this resource"
+        )
+
+    query = Complaint.get_reviews_with_pending_complaints()
+    paginated_query = (
+        query.order_by(ReviewDiscipline.created_at.desc())
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
+
+    result = await db.execute(paginated_query)
+    reviews = result.unique().scalars().all()
+
+    return [review.get_dto() for review in reviews]
+
+
+async def resolve_complaint(
+    db: AsyncSession,
+    current_user: User,
+    review_id: str,
+    action: str
+):
+    if not ("ADMIN" in current_user.get("roles", []) or "SUPER-ADMIN" in current_user.get("roles", [])):
+        raise HTTPException(
+            status_code=403,
+            detail="Only super-admin or admin can resolve complaints"
+        )
+
+    complaints = await Complaint.get_by_review_id(db, review_id)
+    if not complaints:
+        raise HTTPException(
+            404,
+            "No active complaints found for this review"
+        )
+
+    review = await db.get(ReviewDiscipline, review_id)
+    if not review:
+        raise HTTPException(404, "Review not found")
+
+    if action == "delete":
+        await db.delete(review)
+    elif action == "dismiss":
+        for complaint in complaints:
+            complaint.resolved = True
+    else:
+        raise HTTPException(
+            400,
+            "Invalid action. Allowed: 'delete' or 'dismiss'"
+        )
+
+    try:
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(500, f"Database error: {str(e)}")
+
+    return {"message": "Complaint resolved successfully"}

@@ -154,6 +154,11 @@ class ReviewResponse(BaseModel):
         description="Общий рейтинг (лайки - дизлайки)",
         example=8
     )
+    complaints_count: int = Field(
+        ...,
+        description="Количество нерешённых жалоб на отзыв",
+        example=3
+    )
     created_at: datetime = Field(
         ...,
         description="Дата и время создания отзыва",

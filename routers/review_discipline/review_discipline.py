@@ -6,8 +6,9 @@ from models import User
 from models.ReviewDiscipline import ReviewStatusEnum
 from database import get_db
 from .review_discipline_scheme import (
-    CreateReviewModel, UpdateReviewStatus,
-    AddVoteModel, DeleteReviewModel, EditReviewModel
+    CreateReviewModel, UpdateReviewStatus, AddVoteModel,
+    DeleteReviewModel, EditReviewModel, CreateComplaintModel,
+    ResolveComplaintModel
 )
 from response_models import ReviewResponse
 
@@ -108,4 +109,38 @@ async def get_my_reviews(
 ):
     return await review_discipline_service.get_my_reviews(
         db, current_user, page, page_size
+    )
+
+
+@review_router.post("/review/complaint/add", status_code=201)
+async def add_complaint(
+    data: CreateComplaintModel,
+    current_user: User = Depends(user_service.get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    return await review_discipline_service.create_complaint(
+        db, current_user, data.id
+    )
+
+
+@review_router.get("/admin/complaints/get", response_model=List[ReviewResponse])
+async def get_complaints(
+    current_user: User = Depends(user_service.get_current_user),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20)
+):
+    return await review_discipline_service.get_pending_complaints(
+        db, current_user, page, page_size
+    )
+
+
+@review_router.post("/admin/complaints/complaint/review/resolve", status_code=201)
+async def resolve_complaint(
+    data: ResolveComplaintModel,
+    current_user: User = Depends(user_service.get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    return await review_discipline_service.resolve_complaint(
+        db, current_user, data.id, data.action
     )

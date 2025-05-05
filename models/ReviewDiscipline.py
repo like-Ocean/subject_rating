@@ -42,8 +42,8 @@ class ReviewDiscipline(Base):
     discipline = relationship("Discipline", back_populates="reviews")
     lector = relationship("Teacher", foreign_keys=[lector_id])
     practic = relationship("Teacher", foreign_keys=[practic_id])
-
     votes = relationship("ReviewVote", back_populates="review", cascade="all, delete-orphan")
+    complaints = relationship("Complaint", back_populates="review", cascade="all, delete-orphan")
 
     @classmethod
     def get_joined_data(cls):
@@ -52,7 +52,8 @@ class ReviewDiscipline(Base):
             joinedload(cls.lector),
             joinedload(cls.practic),
             joinedload(cls.discipline).joinedload(Discipline.module),
-            selectinload(cls.votes)
+            selectinload(cls.votes),
+            selectinload(cls.complaints)
         )
         return stmt
 
@@ -102,5 +103,8 @@ class ReviewDiscipline(Base):
             "likes": likes,
             "dislikes": dislikes,
             "total_rating": total_rating,
+            "complaints_count": len(
+                [complaint for complaint in self.complaints if not complaint.resolved]
+            ),
             "created_at": self.created_at.isoformat(),
         }
