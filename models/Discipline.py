@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship, selectinload
 from database import Base
 from uuid import uuid4
 import enum
+from models import Module
 
 
 class DisciplineFormatEnum(enum.Enum):
@@ -37,6 +38,9 @@ class Discipline(Base):
         )
 
     def get_dto(self):
+        if not self.module:
+            raise ValueError("Module relationship is not loaded")
+
         reviews_grades = [r.grade for r in self.reviews if r.grade is not None]
         avg_rating = sum(reviews_grades) / len(reviews_grades) if reviews_grades else 0.0
         review_count = len(reviews_grades)

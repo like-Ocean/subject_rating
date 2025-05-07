@@ -35,12 +35,17 @@ class User(Base):
         return check_password_hash(self.password, password)
 
     def get_dto(self):
+        if self.user_roles:
+            role = self.user_roles[0].role.name.value
+        else:
+            role = None
+
         return {
             "id": str(self.id),
             "first_name": self.first_name,
             "surname": self.surname,
             "patronymic": self.patronymic,
             "email": self.email,
-            "roles": [user_role.role.name.value for user_role in self.user_roles]
+            "role": role
         }
 

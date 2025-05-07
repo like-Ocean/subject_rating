@@ -2,17 +2,17 @@ from typing import Optional
 from fastapi import HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import Teacher, TeacherDiscipline, Discipline
+from models import Teacher, TeacherDiscipline, Discipline, User, RoleEnum
 
 
 async def create_teacher(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         first_name: str,
         surname: str,
         patronymic: Optional[str]
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(status_code=403, detail="Only super-admin or admin can create teachers")
 
     teacher = await db.execute(select(Teacher).where(
@@ -39,13 +39,13 @@ async def create_teacher(
 
 async def edit_teacher(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         teacher_id: str,
         first_name: str | None = None,
         surname: str | None = None,
         patronymic: str | None = None,
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(status_code=403, detail="Only super-admin or admin can update teacher")
 
     result = await db.execute(
@@ -75,10 +75,10 @@ async def edit_teacher(
 
 async def delete_teacher(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         teacher_id: str,
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(status_code=403, detail="Only super-admin or admin can delete teacher")
 
     result = await db.execute(select(Teacher).where(Teacher.id == teacher_id))
@@ -121,11 +121,11 @@ async def get_teachers_by_discipline(
 
 async def appoint_teacher_disciplines(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         teacher_id: str,
         discipline_ids: list[str],
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(403, "Only admins can assign teachers")
 
     teacher = await db.execute(select(Teacher).where(Teacher.id == teacher_id))
@@ -176,11 +176,11 @@ async def appoint_teacher_disciplines(
 
 async def remove_teacher_discipline(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         teacher_id: str,
         discipline_id: str
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can remove a teacher from a discipline"

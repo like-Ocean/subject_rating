@@ -1,12 +1,11 @@
 from typing import Optional
 from fastapi import HTTPException, Response
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from check_swear import SwearingCheck
 from models import (
     Discipline, ReviewDiscipline, ReviewVote, ReviewStatusEnum,
-    Complaint, User, Teacher, TeacherDiscipline, VoteTypeEnum
+    Complaint, User, Teacher, TeacherDiscipline, VoteTypeEnum, RoleEnum
 )
 
 swear_checker = SwearingCheck()
@@ -171,14 +170,12 @@ async def delete_review(db: AsyncSession, current_user: User, review_id: str):
         .where(ReviewDiscipline.id == review_id)
     )
     review = result.unique().scalar_one_or_none()
-
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
 
     is_author = str(review.user_id) == current_user["id"] if review.user_id else False
-    is_admin = "ADMIN" in current_user.get("roles", [])
-    is_super_admin = "SUPER-ADMIN" in current_user.get("roles", [])
-
+    is_admin = current_user["role"] == RoleEnum.admin.value
+    is_super_admin = current_user["role"] == RoleEnum.super_admin.value
     if not (is_author or is_admin or is_super_admin):
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -222,7 +219,7 @@ async def get_reviews_by_status(
         page: int = 1,
         page_size: int = 20
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can get reviews by status"
@@ -244,7 +241,7 @@ async def update_review_status(
         new_status: ReviewStatusEnum,
         current_user: User
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can update status"
@@ -368,7 +365,7 @@ async def get_pending_complaints(
         page: int = 1,
         page_size: int = 20,
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can access this resource"
@@ -393,7 +390,7 @@ async def resolve_complaint(
     review_id: str,
     action: str
 ):
-    if not ("ADMIN" in current_user.get("roles", []) or "SUPER-ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can resolve complaints"
