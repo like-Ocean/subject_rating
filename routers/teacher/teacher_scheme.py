@@ -17,7 +17,7 @@ class UpdateTeacherModel(BaseModel):
 
 
 class DeleteTeacherModel(BaseModel):
-    teacher_id: str = Field(...)
+    id: str = Field(..., description="teacher_id")
 
 
 class AppointTeacherDisciplines(BaseModel):

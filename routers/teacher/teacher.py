@@ -46,7 +46,7 @@ async def delete_teacher(
         current_user: User = Depends(user_service.get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    result = await teacher_service.delete_teacher(db, current_user, data.teacher_id, )
+    result = await teacher_service.delete_teacher(db, current_user, data.id)
     return result
 
 

@@ -254,9 +254,9 @@ async def get_user(user_id: str, db: AsyncSession):
 async def delete_user(
         db: AsyncSession,
         user_id: str,
-        current_user: dict
+        current_user: User
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(status_code=403, detail="Only super-admin or admin can delete user")
 
     result = await db.execute(
@@ -271,17 +271,17 @@ async def delete_user(
         .where(User.id == user_id)
     )
     user = result.scalars().first()
-
     if not user:
         raise HTTPException(404, "User not found")
 
     if user_id == current_user["id"]:
         raise HTTPException(400, "Self-deletion is not allowed")
 
-    target_roles = {role.role.name for role in user.user_roles}
-    if {"ADMIN", "SUPER-ADMIN"}.intersection(target_roles):
-        if "SUPER-ADMIN" not in current_user.get("roles", []):
-            raise HTTPException(403, "Only SUPER-ADMIN can delete other admins")
+    user_role = user.user_roles[0].role.name if user.user_roles else RoleEnum.user
+
+    if user_role in {RoleEnum.admin, RoleEnum.super_admin}:
+        if current_user["role"] != RoleEnum.super_admin.value:
+            raise HTTPException(403, "Only SUPER_ADMIN can delete admins")
 
     try:
         await db.delete(user)

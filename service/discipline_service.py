@@ -1,15 +1,19 @@
 from typing import Optional
 from fastapi import HTTPException, Response
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import DisciplineFormatEnum, Module, Discipline, User, Favorite
+from models import (
+    DisciplineFormatEnum, Module,
+    Discipline, User, Favorite, RoleEnum
+)
 
 
 async def create_discipline(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         name: str,
         format_value: str,
         module_id: str,
@@ -17,7 +21,7 @@ async def create_discipline(
         modeus_link: Optional[str] = None,
         presentation_link: Optional[str] = None,
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can create discipline"
@@ -64,8 +68,18 @@ async def create_discipline(
     db.add(new_discipline)
     await db.commit()
 
+    await db.refresh(new_discipline, attribute_names=['module'])
+    if not new_discipline.module:
+        raise HTTPException(500, "Module not loaded after creation")
+
     res = await db.execute(
-        Discipline.get_joined_data().where(Discipline.id == new_discipline.id)
+        Discipline.get_joined_data()
+        .where(Discipline.id == new_discipline.id)
+        .options(
+            selectinload(Discipline.module),
+            selectinload(Discipline.reviews),
+            selectinload(Discipline.favorites)
+        )
     )
     new_discipline = res.scalars().first()
 
@@ -74,7 +88,7 @@ async def create_discipline(
 
 async def update_discipline(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         discipline_id: str,
         name: Optional[str] = None,
         format_value: Optional[str] = None,
@@ -83,7 +97,7 @@ async def update_discipline(
         modeus_link: Optional[str] = None,
         presentation_link: Optional[str] = None,
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can update discipline"
@@ -156,10 +170,10 @@ async def update_discipline(
 
 async def delete_discipline(
         db: AsyncSession,
-        current_user: dict,
+        current_user: User,
         discipline_id: str
 ):
-    if not ("SUPER-ADMIN" in current_user.get("roles", []) or "ADMIN" in current_user.get("roles", [])):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
         raise HTTPException(
             status_code=403,
             detail="Only super-admin or admin can delete discipline"

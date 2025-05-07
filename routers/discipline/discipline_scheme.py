@@ -13,10 +13,10 @@ class DisciplineFormat(str, Enum):
 class CreateDisciplineModel(BaseModel):
     name: str = Field(..., min_length=1)
     format: DisciplineFormat = Field(...)
+    module_id: str = Field(...)
     description: Optional[str] = Field(None)
     modeus_link: Optional[str] = Field(None)
     presentation_link: Optional[str] = Field(None)
-    module_id: str = Field(...)
 
 
 class UpdateDisciplineModel(BaseModel):

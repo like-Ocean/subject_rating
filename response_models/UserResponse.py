@@ -29,8 +29,4 @@ class UserResponse(BaseModel):
         description="User's email",
         example="user@example.com"
     )
-    roles: List[RoleEnum] = Field(
-        ...,
-        description="User roles",
-        example=["USER"]
-    )
+    role: RoleEnum = Field(..., description="User role", example="USER")
