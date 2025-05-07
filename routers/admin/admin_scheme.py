@@ -1,6 +1,10 @@
 from pydantic import BaseModel, Field
 
 
+class ModuleBaseModel(BaseModel):
+    id: str = Field(..., description="module_id")
+
+
 class AddAdminModel(BaseModel):
     id: str = Field(..., description="target_user_id")
 
@@ -9,10 +13,10 @@ class AddModuleModel(BaseModel):
     name: str = Field(...)
 
 
-class DeleteModuleModel(BaseModel):
-    id: str = Field(..., description="module_id")
+class DeleteModuleModel(ModuleBaseModel):
+    pass
 
 
-class UpdateModuleModel(BaseModel):
+class UpdateModuleModel(ModuleBaseModel):
     id: str = Field(..., description="module_id")
     new_name: str = Field(...)

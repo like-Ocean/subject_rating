@@ -139,6 +139,26 @@ class ReviewResponse(BaseModel):
         description="Анонимный ли отзыв",
         example=False
     )
+    likes: int = Field(
+        ...,
+        description="Количество лайков",
+        example=10
+    )
+    dislikes: int = Field(
+        ...,
+        description="Количество дизлайков",
+        example=2
+    )
+    total_rating: int = Field(
+        ...,
+        description="Общий рейтинг (лайки - дизлайки)",
+        example=8
+    )
+    complaints_count: int = Field(
+        ...,
+        description="Количество нерешённых жалоб на отзыв",
+        example=3
+    )
     created_at: datetime = Field(
         ...,
         description="Дата и время создания отзыва",
