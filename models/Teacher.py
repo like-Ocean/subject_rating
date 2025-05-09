@@ -1,5 +1,6 @@
+from typing import Optional
 from uuid import uuid4
-from sqlalchemy import Column, String, select
+from sqlalchemy import Column, String, select, or_
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, selectinload
 from .TeacherDiscipline import TeacherDiscipline
@@ -23,7 +24,35 @@ class Teacher(Base):
             selectinload(cls.teacher_disciplines)
             .joinedload(TeacherDiscipline.discipline)
             .joinedload(Discipline.module)
-        )
+        ).outerjoin(TeacherDiscipline).outerjoin(Discipline).group_by(cls.id)
+
+    @classmethod
+    def apply_filters(cls, query, name_search: Optional[str] = None):
+        if name_search:
+            search = f"%{name_search}%"
+            query = query.where(
+                or_(
+                    cls.first_name.ilike(search),
+                    cls.surname.ilike(search),
+                    cls.patronymic.ilike(search)
+                )
+            )
+        return query
+
+    @classmethod
+    def apply_sorting(cls, query, sort_field: str = "surname", sort_order: str = "asc"):
+        sort_mapping = {
+            "surname": cls.surname,
+            "first_name": cls.first_name
+        }
+
+        sort_column = sort_mapping.get(sort_field, cls.surname)
+        if sort_order.lower() == "desc":
+            sort_column = sort_column.desc()
+        else:
+            sort_column = sort_column.asc()
+
+        return query.order_by(sort_column)
 
     def get_dto(self):
         disciplines = []

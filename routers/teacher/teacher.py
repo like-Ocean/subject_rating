@@ -1,11 +1,11 @@
-from typing import List
-from fastapi import APIRouter, Depends
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from service import teacher_service
 from models import User
 from database import get_db
 from service import user_service
-from response_models import TeacherResponse
+from response_models import TeacherResponse, PaginatedResponse
 from .teacher_scheme import (
     CreateTeacherModel, UpdateTeacherModel, DeleteTeacherModel,
     AppointTeacherDisciplines, RemoveTeacherDiscipline
@@ -50,15 +50,42 @@ async def delete_teacher(
     return result
 
 
-@teacher_router.get("/get", response_model=List[TeacherResponse])
-async def get_teachers(db: AsyncSession = Depends(get_db)):
-    teachers = await teacher_service.get_teachers(db)
-    return teachers
+@teacher_router.get("/get", response_model=PaginatedResponse[TeacherResponse])
+async def get_teachers(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    name_search: Optional[str] = Query(None),
+    sort_field: str = Query(
+        "surname",
+        description="Поле для сортировки (surname, first_name)"
+    ),
+    sort_order: str = Query("asc"),
+    db: AsyncSession = Depends(get_db)
+):
+    return await teacher_service.get_teachers(
+        db, page, size, name_search,
+        sort_field, sort_order
+    )
 
 
-@teacher_router.get("/discipline/{id}/get-by-discipline", response_model=List[TeacherResponse])
-async def get_teachers_by_discipline(id: str, db: AsyncSession = Depends(get_db)):
-    return await teacher_service.get_teachers_by_discipline(db, id)
+@teacher_router.get(
+    "/discipline/{id}/get-by-discipline",
+    response_model=PaginatedResponse[TeacherResponse]
+)
+async def get_teachers_by_discipline(
+    id: str,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    name_search: Optional[str] = Query(None),
+    sort_field: str = Query("surname", description="Поле для сортировки"),
+    sort_order: str = Query("asc", description="Порядок сортировки"),
+    db: AsyncSession = Depends(get_db)
+):
+    return await teacher_service.get_teachers_by_discipline(
+        db=db, discipline_id=id, page=page, size=size,
+        name_search=name_search, sort_field=sort_field,
+        sort_order=sort_order
+    )
 
 
 @teacher_router.post("/admin/teacher/discipline/appoint", response_model=TeacherResponse)

@@ -1,12 +1,15 @@
-from typing import List
-from fastapi import APIRouter, Depends, Request, HTTPException, Response
+from typing import Optional
+from fastapi import (
+    APIRouter, Depends, Request,
+    HTTPException, Response, Query
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from models import User
 from database import get_db
 from service import user_service
 from .user_scheme import RegisterModel, Authorization, ChangePasswordModel, ChangeModel
-from response_models import UserResponse
+from response_models import UserResponse, PaginatedResponse
 
 user_router = APIRouter(prefix="/users", tags=["users"])
 
@@ -77,10 +80,28 @@ async def edit_password(
     )
 
 
-@user_router.get("/", response_model=List[UserResponse])
-async def get_all_user(db: AsyncSession = Depends(get_db)):
-    user_data = await user_service.get_users(db)
-    return user_data
+@user_router.get("/", response_model=PaginatedResponse[UserResponse])
+async def get_all_users(
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    size: int = Query(
+        20, ge=1, le=100,
+        description="Поиск по имени или фамилии или отчеству"
+    ),
+    search: Optional[str] = Query(None),
+    sort_field: str = Query(
+        "surname",
+        description="Поле для сортировки (surname, first_name)"
+    ),
+    sort_order: str = Query(
+        "asc",
+        description="Порядок сортировки (asc/desc)"
+    )
+):
+    return await user_service.get_users(
+        db, page, size, search,
+        sort_field, sort_order
+    )
 
 
 @user_router.get("/user/{id}", response_model=UserResponse)
@@ -92,7 +113,7 @@ async def get_user(id, db: AsyncSession = Depends(get_db)):
 @user_router.delete("/admin/user/{id}/delete")
 async def delete_user(
     id: str,
-    current_user: dict = Depends(user_service.get_current_user),
+    current_user: User = Depends(user_service.get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     return await user_service.delete_user(db, id, current_user)

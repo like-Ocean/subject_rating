@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import HTTPException, Response
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import Teacher, TeacherDiscipline, Discipline, User, RoleEnum
 
@@ -91,32 +91,91 @@ async def delete_teacher(
     return Response(status_code=200)
 
 
-async def get_teachers(db: AsyncSession):
-    result = await db.execute(Teacher.get_joined_data())
+async def get_teachers(
+        db: AsyncSession,
+        page: int = 1,
+        size: int = 20,
+        name_search: Optional[str] = None,
+        sort_field: str = "surname",
+        sort_order: str = "asc"
+):
+    data = Teacher.get_joined_data()
+    filtered_query = Teacher.apply_filters(data, name_search)
+    sorted_query = Teacher.apply_sorting(filtered_query, sort_field, sort_order)
+
+    count_query = select(func.count(Teacher.id.distinct())).select_from(Teacher)
+    count_query = Teacher.apply_filters(count_query, name_search)
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+    total_pages = (total + size - 1) // size
+    paginated_query = sorted_query.limit(size).offset((page - 1) * size)
+
+    result = await db.execute(paginated_query)
     teachers = result.unique().scalars().all()
 
-    return [teacher.get_dto() for teacher in teachers]
+    return {
+        "data": [teacher.get_dto() for teacher in teachers],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": size
+        }
+    }
 
 
 async def get_teachers_by_discipline(
-        db: AsyncSession,
-        discipline_id: str
+    db: AsyncSession,
+    discipline_id: str,
+    page: int = 1,
+    size: int = 20,
+    name_search: Optional[str] = None,
+    sort_field: str = "surname",
+    sort_order: str = "asc"
 ):
-    discipline = await db.execute(
-        select(Discipline)
-        .where(Discipline.id == discipline_id)
+    discipline_exists = await db.execute(
+        select(Discipline.id).where(Discipline.id == discipline_id)
     )
-    if not discipline.scalars().first():
+    if not discipline_exists.scalar():
         raise HTTPException(404, "Discipline not found")
 
-    result = await db.execute(
+    data = (
         Teacher.get_joined_data()
-        .join(TeacherDiscipline)
         .where(TeacherDiscipline.discipline_id == discipline_id)
     )
-    teachers = result.scalars().all()
 
-    return [teacher.get_dto() for teacher in teachers]
+    if name_search:
+        data = Teacher.apply_filters(data, name_search)
+
+    count_query = (
+        select(func.count(Teacher.id.distinct()))
+        .select_from(Teacher).join(TeacherDiscipline)
+        .where(TeacherDiscipline.discipline_id == discipline_id)
+    )
+    if name_search:
+        count_query = Teacher.apply_filters(count_query, name_search)
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+
+    sorted_query = Teacher.apply_sorting(data, sort_field, sort_order)
+
+    total_pages = (total + size - 1) // size
+    paginated_query = sorted_query.limit(size).offset((page - 1) * size)
+
+    result = await db.execute(paginated_query)
+    teachers = result.unique().scalars().all()
+
+    return {
+        "data": [teacher.get_dto() for teacher in teachers],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": size
+        }
+    }
 
 
 async def appoint_teacher_disciplines(

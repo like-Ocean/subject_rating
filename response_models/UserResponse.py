@@ -1,6 +1,6 @@
 from pydantic import BaseModel, UUID4, EmailStr, Field
-from typing import List, Optional
-from models import RoleEnum
+from typing import Optional
+from models.Role import RoleEnum
 
 
 class UserResponse(BaseModel):

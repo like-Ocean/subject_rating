@@ -1,5 +1,6 @@
 from typing import Optional
 from fastapi import HTTPException, Response
+from sqlalchemy import or_, func
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from check_swear import SwearingCheck
@@ -189,27 +190,54 @@ async def delete_review(db: AsyncSession, current_user: User, review_id: str):
     return Response(status_code=200)
 
 
-# TODO: сделать пагинацию и page_size на всех get запросах. Написать функционал отправки
-#  письма на почту если забыл пароль
+# TODO: Написать функционал отправки письма на почту если забыл пароль
 async def get_all_reviews(
         db: AsyncSession,
         discipline_id: Optional[str] = None,
+        teacher_id: Optional[str] = None,
         page: int = 1,
-        page_size: int = 40
+        page_size: int = 40,
+        sort_by: str = "date",
+        sort_order: str = "desc"
 ):
-    query = ReviewDiscipline.get_joined_data().where(
+    data = ReviewDiscipline.get_joined_data()
+    data = data.where(
         ReviewDiscipline.status == ReviewStatusEnum.published
     )
 
     if discipline_id:
-        query = query.where(ReviewDiscipline.discipline_id == discipline_id)
+        data = data.where(ReviewDiscipline.discipline_id == discipline_id)
 
-    result = await db.execute(
-        query.order_by(ReviewDiscipline.created_at.desc())
-        .limit(page_size)
-        .offset((page - 1) * page_size)
-    )
-    return [review.get_dto() for review in result.unique().scalars().all()]
+    if teacher_id:
+        data = data.where(or_(
+            ReviewDiscipline.lector_id == teacher_id,
+            ReviewDiscipline.practic_id == teacher_id
+        ))
+
+    query_with_likes = ReviewDiscipline.add_likes_count(data)
+
+    sorted_query = ReviewDiscipline.apply_sorting(query_with_likes, sort_by, sort_order)
+    final_query = sorted_query.order_by(ReviewDiscipline.is_anonymous.asc())
+
+    count_query = data.with_only_columns(func.count(ReviewDiscipline.id))
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+
+    total_pages = (total + page_size - 1) // page_size
+    paginated_query = final_query.limit(page_size).offset((page - 1) * page_size)
+
+    result = await db.execute(paginated_query)
+    reviews = result.unique().scalars().all()
+
+    return {
+        "data": [review.get_dto() for review in reviews],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": page_size
+        }
+    }
 
 
 async def get_reviews_by_status(
@@ -217,22 +245,55 @@ async def get_reviews_by_status(
         current_user: User,
         status: ReviewStatusEnum,
         page: int = 1,
-        page_size: int = 20
+        page_size: int = 20,
+        discipline_id: Optional[str] = None,
+        teacher_id: Optional[str] = None,
+        sort_by: str = "date",
+        sort_order: str = "desc"
 ):
     if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
-        raise HTTPException(
-            status_code=403,
-            detail="Only super-admin or admin can get reviews by status"
+        raise HTTPException(403, "Only admins can access this endpoint")
+
+    base_query = ReviewDiscipline.get_joined_data().where(
+        ReviewDiscipline.status == status
+    )
+
+    if discipline_id:
+        base_query = base_query.where(
+            ReviewDiscipline.discipline_id == discipline_id
         )
 
-    result = await db.execute(
-        ReviewDiscipline.get_joined_data()
-        .where(ReviewDiscipline.status == status)
-        .order_by(ReviewDiscipline.created_at.desc())
-        .limit(page_size)
-        .offset((page - 1) * page_size)
-    )
-    return [review.get_dto() for review in result.unique().scalars().all()]
+    if teacher_id:
+        base_query = base_query.where(
+            or_(
+                ReviewDiscipline.lector_id == teacher_id,
+                ReviewDiscipline.practic_id == teacher_id
+            )
+        )
+
+    query_with_likes = ReviewDiscipline.add_likes_count(base_query)
+    sorted_query = ReviewDiscipline.apply_sorting(query_with_likes, sort_by, sort_order)
+    final_query = sorted_query.order_by(ReviewDiscipline.is_anonymous.asc())
+
+    count_query = base_query.with_only_columns(func.count(ReviewDiscipline.id))
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+
+    total_pages = (total + page_size - 1) // page_size
+    paginated_query = final_query.limit(page_size).offset((page - 1) * page_size)
+
+    result = await db.execute(paginated_query)
+    reviews = result.unique().scalars().all()
+
+    return {
+        "data": [review.get_dto() for review in reviews],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": page_size
+        }
+    }
 
 
 async def update_review_status(
@@ -311,19 +372,51 @@ async def vote_review(
 async def get_my_reviews(
         db: AsyncSession,
         current_user: User,
+        discipline_id: Optional[str] = None,
+        teacher_id: Optional[str] = None,
         page: int = 1,
-        page_size: int = 40
+        page_size: int = 40,
+        sort_by: str = "date",
+        sort_order: str = "desc"
 ):
-    query = ReviewDiscipline.get_joined_data().where(
+    base_query = ReviewDiscipline.get_joined_data().where(
         ReviewDiscipline.user_id == current_user["id"]
     )
-    result = await db.execute(
-        query.order_by(ReviewDiscipline.created_at.desc())
-        .limit(page_size)
-        .offset((page - 1) * page_size)
-    )
 
-    return [review.get_dto() for review in result.unique().scalars().all()]
+    if discipline_id:
+        base_query = base_query.where(
+            ReviewDiscipline.discipline_id == discipline_id
+        )
+
+    if teacher_id:
+        base_query = base_query.where(or_(
+            ReviewDiscipline.lector_id == teacher_id,
+            ReviewDiscipline.practic_id == teacher_id)
+        )
+
+    query_with_likes = ReviewDiscipline.add_likes_count(base_query)
+    sorted_query = ReviewDiscipline.apply_sorting(query_with_likes, sort_by, sort_order)
+
+    count_query = base_query.with_only_columns(func.count(ReviewDiscipline.id))
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+
+    total_pages = (total + page_size - 1) // page_size
+
+    paginated_query = sorted_query.limit(page_size).offset((page - 1) * page_size)
+
+    result = await db.execute(paginated_query)
+    reviews = result.unique().scalars().all()
+
+    return {
+        "data": [review.get_dto() for review in reviews],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": page_size
+        }
+    }
 
 
 async def create_complaint(
@@ -362,26 +455,51 @@ async def create_complaint(
 async def get_pending_complaints(
         db: AsyncSession,
         current_user: User,
+        discipline_id: Optional[str] = None,
+        teacher_id: Optional[str] = None,
         page: int = 1,
-        page_size: int = 20,
+        page_size: int = 40,
+        sort_by: str = "date",
+        sort_order: str = "desc"
 ):
     if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
-        raise HTTPException(
-            status_code=403,
-            detail="Only super-admin or admin can access this resource"
-        )
+        raise HTTPException(status_code=403, detail="Only admins can access this endpoint")
 
-    query = Complaint.get_reviews_with_pending_complaints()
-    paginated_query = (
-        query.order_by(ReviewDiscipline.created_at.desc())
-        .limit(page_size)
-        .offset((page - 1) * page_size)
+    base_query = Complaint.get_reviews_with_pending_complaints()
+
+    if discipline_id:
+        base_query = base_query.where(ReviewDiscipline.discipline_id == discipline_id)
+
+    if teacher_id:
+        base_query = base_query.where(or_(
+            ReviewDiscipline.lector_id == teacher_id,
+            ReviewDiscipline.practic_id == teacher_id
+        ))
+
+    query_with_likes = ReviewDiscipline.add_likes_count(base_query)
+
+    sorted_query = ReviewDiscipline.apply_sorting(
+        query_with_likes, sort_by, sort_order
     )
+    count_query = base_query.with_only_columns(func.count(ReviewDiscipline.id.distinct()))
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+
+    total_pages = (total + page_size - 1) // page_size
+    paginated_query = sorted_query.limit(page_size).offset((page - 1) * page_size)
 
     result = await db.execute(paginated_query)
     reviews = result.unique().scalars().all()
 
-    return [review.get_dto() for review in reviews]
+    return {
+        "data": [review.get_dto() for review in reviews],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": page_size
+        }
+    }
 
 
 async def resolve_complaint(

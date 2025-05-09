@@ -7,7 +7,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, joinedload, selectinload
 from .ReviewVote import VoteTypeEnum
 from models import Discipline
-
 from database import Base
 import enum
 
@@ -47,7 +46,7 @@ class ReviewDiscipline(Base):
 
     @classmethod
     def get_joined_data(cls):
-        stmt = select(cls).options(
+        data = select(cls).options(
             joinedload(cls.author),
             joinedload(cls.lector),
             joinedload(cls.practic),
@@ -55,7 +54,36 @@ class ReviewDiscipline(Base):
             selectinload(cls.votes),
             selectinload(cls.complaints)
         )
-        return stmt
+        return data
+
+    @classmethod
+    def apply_sorting(cls, query, sort_by: str = "date", sort_order: str = "desc"):
+        sort_mapping = {
+            "date": cls.created_at,
+            "likes": "likes_count"
+        }
+        sort_column = sort_mapping.get(sort_by, cls.created_at)
+
+        if sort_order.lower() == "desc":
+            sort_column = sort_column.desc()
+        else:
+            sort_column = sort_column.asc()
+
+        return query.order_by(sort_column)
+
+    @classmethod
+    def add_likes_count(cls, query):
+        from models import ReviewVote
+        from sqlalchemy import case
+
+        return (
+            query.outerjoin(ReviewVote)
+            .add_columns(func.sum(case((
+                ReviewVote.vote == VoteTypeEnum.like, 1),
+                else_=0
+            )).label("likes_count"))
+            .group_by(cls.id)
+        )
 
     def get_dto(self):
         likes = sum(1 for v in self.votes if v.vote == VoteTypeEnum.like)

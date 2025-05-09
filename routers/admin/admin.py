@@ -1,7 +1,7 @@
-from typing import List
-from fastapi import APIRouter, Depends
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from response_models import UserResponse, ModuleResponse
+from response_models import UserResponse, ModuleResponse, PaginatedResponse
 from models import User
 from database import get_db
 from service import admin_service, user_service
@@ -37,6 +37,21 @@ async def remove_admin(
     return updated_user
 
 
+@admin_router.get("/admins", response_model=PaginatedResponse[UserResponse])
+async def get_all_admins(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Поиск по имени или фамилии или отчеству"),
+    sort_field: str = Query("surname", description="Поле для сортировки (surname, first_name)"),
+    sort_order: str = Query("asc", description="Порядок сортировки (asc/desc)"),
+    db: AsyncSession = Depends(get_db)
+):
+    return await admin_service.get_admins(
+        db, page, size, search,
+        sort_field, sort_order
+    )
+
+
 @admin_router.post("/module/add", response_model=ModuleResponse)
 async def add_module(
     data: AddModuleModel,
@@ -65,7 +80,7 @@ async def update_module(
 @admin_router.delete("/module/delete")
 async def delete_module(
     data: DeleteModuleModel,
-    current_user: dict = Depends(user_service.get_current_user),
+    current_user: User = Depends(user_service.get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     result = await admin_service.delete_module(

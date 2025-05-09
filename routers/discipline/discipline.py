@@ -4,11 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from service import discipline_service
 from models import User, DisciplineFormatEnum
 from database import get_db
-from response_models import DisciplineResponse
+from response_models import DisciplineResponse, PaginatedResponse
 from .discipline_scheme import (
     CreateDisciplineModel, UpdateDisciplineModel,
-    DeleteDisciplineModel, AddFavorite, SortOrder,
-    SortBy
+    DeleteDisciplineModel, AddFavorite, SortOrder, SortBy
 )
 from service import user_service
 
@@ -59,9 +58,11 @@ async def get_disciplines(db: AsyncSession = Depends(get_db)):
     return await discipline_service.get_disciplines(db)
 
 
-@discipline_router.get("/search", response_model=List[DisciplineResponse])
+@discipline_router.get("/search", response_model=PaginatedResponse[DisciplineResponse])
 async def search_disciplines(
     db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
     name_search: Optional[str] = Query(
         None,
         description="Поиск по названию дисциплины"
@@ -84,10 +85,9 @@ async def search_disciplines(
     )
 ):
     return await discipline_service.search_disciplines(
-        db,name_search,module_search,
+        db, page, size, name_search, module_search,
         format_filter.value if format_filter else None,
-        sort_by.value,
-        sort_order.value
+        sort_by.value, sort_order.value
     )
 
 
@@ -116,9 +116,24 @@ async def remove_from_favorites(
     return await discipline_service.remove_favorite(db, str(current_user["id"]), data.id)
 
 
-@discipline_router.get("/favorite/my", response_model=List[DisciplineResponse])
+@discipline_router.get(
+    "/favorite/my",
+    response_model=PaginatedResponse[DisciplineResponse]
+)
 async def get_my_favorites(
-    current_user: User = Depends(user_service.get_current_user),
-    db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(user_service.get_current_user),
+        page: int = Query(1, ge=1),
+        size: int = Query(20, ge=1, le=100),
+        name_search: Optional[str] = Query(None),
+        module_search: Optional[str] = Query(None),
+        format_filter: Optional[DisciplineFormatEnum] = Query(None),
+        sort_by: SortBy = Query(SortBy.rating),
+        sort_order: SortOrder = Query(SortOrder.desc),
 ):
-    return await discipline_service.get_user_favorites(db, str(current_user["id"]))
+    return await discipline_service.get_user_favorites(
+        db, str(current_user["id"]), page, size,
+        name_search, module_search,
+        format_filter.value if format_filter else None,
+        sort_by.value, sort_order.value
+    )

@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, List
 from fastapi import HTTPException, Response
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from datetime import datetime
 from sqlalchemy.exc import DBAPIError
@@ -9,6 +9,35 @@ from models import (
     DisciplineFormatEnum, Module,
     Discipline, User, Favorite, RoleEnum
 )
+
+
+def sort_disciplines(disciplines: List[Discipline], sort_by: str, sort_order: str):
+    if sort_by not in ("rating", "reviews", "latest"):
+        raise HTTPException(400, detail="Invalid sort_by parameter")
+
+    if sort_order not in ("asc", "desc"):
+        raise HTTPException(400, detail="Invalid sort_order parameter")
+
+    reverse = (sort_order == "desc")
+
+    def get_rating(d: Discipline):
+        grades = [r.grade for r in d.reviews if r.grade is not None]
+        return sum(grades) / len(grades) if grades else 0.0
+
+    def get_reviews_count(d: Discipline):
+        return len(d.reviews)
+
+    def get_latest_date(d: Discipline):
+        dates = [r.created_at for r in d.reviews]
+        return max(dates) if dates else datetime.min
+
+    sort_key = {
+        "rating": get_rating,
+        "reviews": get_reviews_count,
+        "latest": get_latest_date
+    }[sort_by]
+
+    return sorted(disciplines, key=sort_key, reverse=reverse)
 
 
 async def create_discipline(
@@ -210,65 +239,43 @@ async def get_discipline(db: AsyncSession, discipline_id: str):
 
 async def search_disciplines(
         db: AsyncSession,
+        page: int,
+        size: int,
         name_search: Optional[str] = None,
         module_search: Optional[str] = None,
         format_filter: Optional[str] = None,
         sort_by: Optional[str] = "rating",  # "rating", "reviews", "latest"
-        sort_order: Optional[str] = "desc"  # "asc" или "desc"
+        sort_order: Optional[str] = "desc",  # "asc" или "desc"
 ):
-    result = await db.execute(Discipline.get_joined_data())
-    disciplines = result.scalars().all()
+    data = Discipline.get_joined_data()
+    query = Discipline.apply_filters(
+        data,
+        name_search=name_search,
+        module_search=module_search,
+        format_filter=format_filter
+    )
 
-    filtered = []
-    for discipline in disciplines:
-        if name_search and name_search.lower() not in discipline.name.lower():
-            continue
+    total_query = query.with_only_columns(func.count(Discipline.id))
+    total_result = await db.execute(total_query)
+    total = total_result.scalar_one()
 
-        module_name = discipline.module.name.lower() if discipline.module else ""
-        if module_search and module_search.lower() not in module_name:
-            continue
+    total_pages = (total + size - 1) // size
+    paginated_query = query.limit(size).offset((page - 1) * size)
 
-        if format_filter:
-            try:
-                valid_format = DisciplineFormatEnum(format_filter)
-            except ValueError:
-                raise HTTPException(400, detail="Invalid format filter")
-            if discipline.format != valid_format:
-                continue
+    result = await db.execute(paginated_query)
+    disciplines = result.unique().scalars().all()
 
-        filtered.append(discipline)
+    sorted_disciplines = sort_disciplines(disciplines, sort_by, sort_order)
 
-    if sort_by not in ("rating", "reviews", "latest"):
-        raise HTTPException(
-            400,
-            detail="sort_by must be 'rating', 'reviews' or 'latest'"
-        )
-    if sort_order not in ("asc", "desc"):
-        raise HTTPException(
-            400,
-            detail="sort_order must be 'asc' or 'desc'"
-        )
-    reverse = (sort_order == "desc")
-
-    def key_rating(discipline: Discipline):
-        grades = [review.grade for review in discipline.reviews if review.grade is not None]
-        return sum(grades) / len(grades) if grades else 0.0
-
-    def key_reviews(discipline: Discipline):
-        return len(discipline.reviews)
-
-    def key_latest(discipline: Discipline):
-        dates = [review.created_at for review in discipline.reviews]
-        return max(dates) if dates else datetime.min
-
-    key_map = {
-        "rating": key_rating,
-        "reviews": key_reviews,
-        "latest": key_latest,
+    return {
+        "data": [discipline.get_dto() for discipline in sorted_disciplines],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": size
+        }
     }
-
-    sorted_disciplines = sorted(filtered, key=key_map[sort_by], reverse=reverse)
-    return [discipline.get_dto() for discipline in sorted_disciplines]
 
 
 async def add_favorite(db: AsyncSession, user_id: str, discipline_id: str):
@@ -338,17 +345,42 @@ async def remove_favorite(db: AsyncSession, user_id: str, discipline_id: str):
     return updated_discipline.get_dto()
 
 
-async def get_user_favorites(db: AsyncSession, user_id: str):
-    user_data = await db.execute(select(User).where(User.id == user_id))
-    user = user_data.scalars().first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    result = await db.execute(
-        Discipline
-        .get_joined_data()
-        .join(Favorite, Favorite.discipline_id == Discipline.id)
-        .where(Favorite.user_id == user_id)
+async def get_user_favorites(
+        db: AsyncSession,
+        user_id: str,
+        page: int = 1,
+        size: int = 20,
+        name_search: Optional[str] = None,
+        module_search: Optional[str] = None,
+        format_filter: Optional[str] = None,
+        sort_by: Optional[str] = "rating",
+        sort_order: Optional[str] = "desc"
+):
+    data = Discipline.get_favorites(user_id)
+    query = Discipline.apply_filters(
+        data,
+        name_search=name_search,
+        module_search=module_search,
+        format_filter=format_filter
     )
-    disciplines = result.scalars().all()
-    return [discipline.get_dto() for discipline in disciplines]
+
+    total_query = query.with_only_columns(func.count(Discipline.id))
+    total_result = await db.execute(total_query)
+    total = total_result.scalar_one()
+    total_pages = (total + size - 1) // size
+    paginated_query = query.limit(size).offset((page - 1) * size)
+
+    result = await db.execute(paginated_query)
+    disciplines = result.unique().scalars().all()
+
+    sorted_disciplines = sort_disciplines(disciplines, sort_by, sort_order)
+
+    return {
+        "data": [discipline.get_dto() for discipline in sorted_disciplines],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": size
+        }
+    }

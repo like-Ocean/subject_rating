@@ -1,7 +1,9 @@
+from typing import Optional
 from fastapi import HTTPException, Response
 from sqlalchemy import select
+from sqlalchemy import or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from models import (
     User, Role, RoleEnum, UserRole, Module, Discipline
 )
@@ -70,6 +72,47 @@ async def remove_admin(target_user_id: str, current_user: User, db: AsyncSession
     await db.commit()
     await db.refresh(target_user)
     return target_user.get_dto()
+
+
+async def get_admins(
+        db: AsyncSession, page: int = 1,
+        size: int = 20, search: Optional[str] = None,
+        sort_field: str = "surname", sort_order: str = "asc"
+):
+    data = (
+        select(User).options(selectinload(
+            User.user_roles).joinedload(UserRole.role)
+        ).join(UserRole).join(Role).where(
+            or_(
+                Role.name == RoleEnum.admin,
+                Role.name == RoleEnum.super_admin
+            )
+        ).distinct()
+    )
+    if search:
+        data = User.apply_search_filter(data, search)
+
+    total_query = data.with_only_columns(func.count(User.id))
+    total_result = await db.execute(total_query)
+    total = total_result.scalar_one()
+
+    data = User.apply_sorting(data, sort_field, sort_order)
+
+    total_pages = (total + size - 1) // size
+    paginated_query = data.limit(size).offset((page - 1) * size)
+
+    result = await db.execute(paginated_query)
+    users = result.unique().scalars().all()
+
+    return {
+        "data": [user.get_dto() for user in users],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": size
+        }
+    }
 
 
 async def add_module(module_name: str, current_user: User, db: AsyncSession):

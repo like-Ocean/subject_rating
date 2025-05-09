@@ -10,7 +10,7 @@ from .review_discipline_scheme import (
     DeleteReviewModel, EditReviewModel, CreateComplaintModel,
     ResolveComplaintModel
 )
-from response_models import ReviewResponse
+from response_models import ReviewResponse, PaginatedResponse
 
 
 review_router = APIRouter(prefix="/reviews", tags=["reviews"])
@@ -52,28 +52,40 @@ async def delete_review(
     )
 
 
-@review_router.get("", response_model=List[ReviewResponse])
+@review_router.get("", response_model=PaginatedResponse[ReviewResponse])
 async def get_reviews(
     db: AsyncSession = Depends(get_db),
     discipline_id: Optional[str] = Query(None),
+    teacher_id: Optional[str] = Query(None, description="Фильтр по преподавателю (ID)"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(40)
+    page_size: int = Query(40, ge=1, le=100),
+    sort_by: str = Query("date", description="Сортировка по (date, likes)"),
+    sort_order: str = Query("desc", description="Порядок сортировки (asc, desc)")
 ):
     return await review_discipline_service.get_all_reviews(
-        db, discipline_id, page, page_size
+        db, discipline_id, teacher_id, page,
+        page_size, sort_by, sort_order
     )
 
 
-@review_router.get("/review/admin/moderation", response_model=List[ReviewResponse])
+@review_router.get(
+    "/review/admin/moderation",
+    response_model=PaginatedResponse[ReviewResponse]
+)
 async def get_moderation_reviews(
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(user_service.get_current_user),
-        status: ReviewStatusEnum = Query(ReviewStatusEnum.pending),
-        page: int = Query(1, ge=1),
-        page_size: int = Query(40),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(user_service.get_current_user),
+    status: ReviewStatusEnum = Query(ReviewStatusEnum.pending),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(40, ge=1, le=100),
+    discipline_id: Optional[str] = Query(None),
+    teacher_id: Optional[str] = Query(None),
+    sort_by: str = Query("date", description="Сортировка по (date, likes)"),
+    sort_order: str = Query("desc", description="Порядок сортировки (asc/desc)")
 ):
     return await review_discipline_service.get_reviews_by_status(
-        db, current_user, status, page, page_size
+        db, current_user, status, page, page_size,
+        discipline_id, teacher_id, sort_by, sort_order
     )
 
 
@@ -99,16 +111,20 @@ async def add_vote(
     )
 
 
-@review_router.get("/my", response_model=List[ReviewResponse])
+@review_router.get("/my", response_model=PaginatedResponse[ReviewResponse])
 async def get_my_reviews(
-    current_user: User = Depends(user_service.get_current_user),
-    db: AsyncSession = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(40),
-
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(user_service.get_current_user),
+        discipline_id: Optional[str] = Query(None, description="Фильтр по дисциплине"),
+        teacher_id: Optional[str] = Query(None, description="Фильтр по преподавателю"),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(40, ge=1, le=100),
+        sort_by: str = Query("date", description="Поле сортировки (date, likes)"),
+        sort_order: str = Query("desc", description="Порядок сортировки (asc/desc)")
 ):
     return await review_discipline_service.get_my_reviews(
-        db, current_user, page, page_size
+        db, current_user, discipline_id, teacher_id,
+        page, page_size, sort_by, sort_order
     )
 
 
@@ -123,15 +139,23 @@ async def add_complaint(
     )
 
 
-@review_router.get("/admin/complaints/get", response_model=List[ReviewResponse])
+@review_router.get(
+    "/admin/complaints/get",
+    response_model=PaginatedResponse[ReviewResponse]
+)
 async def get_complaints(
     current_user: User = Depends(user_service.get_current_user),
     db: AsyncSession = Depends(get_db),
+    discipline_id: Optional[str] = Query(None),
+    teacher_id: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20)
+    page_size: int = Query(40, ge=1, le=100),
+    sort_by: str = Query("date", description="Сортировка по (date, likes)"),
+    sort_order: str = Query("desc", description="Порядок сортировки (asc, desc)")
 ):
     return await review_discipline_service.get_pending_complaints(
-        db, current_user, page, page_size
+        db, current_user, discipline_id, teacher_id,
+        page, page_size, sort_by, sort_order
     )
 
 

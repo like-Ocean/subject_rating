@@ -1,3 +1,4 @@
+from .PaginationResponse import PaginatedResponse
 from .ReviewResponse import ReviewResponse
 from .UserResponse import UserResponse
 from .AdminResponse import ModuleResponse

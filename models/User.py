@@ -1,5 +1,5 @@
 from uuid import uuid4
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, or_
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from database import Base
@@ -33,6 +33,31 @@ class User(Base):
 
     def check_password(self, password: str):
         return check_password_hash(self.password, password)
+
+    @classmethod
+    def apply_search_filter(cls, query, search_term: str):
+        return query.where(
+            or_(
+                cls.first_name.ilike(f"%{search_term}%"),
+                cls.surname.ilike(f"%{search_term}%"),
+                cls.patronymic.ilike(f"%{search_term}%")
+            )
+        )
+
+    @classmethod
+    def apply_sorting(cls, query, sort_field: str = "surname", sort_order: str = "asc"):
+        sort_mapping = {
+            "surname": cls.surname,
+            "first_name": cls.first_name
+        }
+
+        sort_column = sort_mapping.get(sort_field, cls.surname)
+        if sort_order.lower() == "desc":
+            sort_column = sort_column.desc()
+        else:
+            sort_column = sort_column.asc()
+
+        return query.order_by(sort_column)
 
     def get_dto(self):
         if self.user_roles:

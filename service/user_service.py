@@ -1,10 +1,11 @@
+from typing import Optional
 from uuid import uuid4
 import re
 from sqlalchemy.exc import SQLAlchemyError
 from database import get_db
 from fastapi import HTTPException, Request, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from models import User, Session, Role, RoleEnum, UserRole
 from sqlalchemy.orm import selectinload, joinedload
 
@@ -227,14 +228,41 @@ async def change_password(
     return user.get_dto()
 
 
-async def get_users(db: AsyncSession):
-    result = await db.execute(
-        select(User).options(
-            selectinload(User.user_roles).joinedload(UserRole.role)
-        )
+async def get_users(
+        db: AsyncSession,
+        page: int,
+        size: int,
+        search: Optional[str] = None,
+        sort_field: str = "surname",
+        sort_order: str = "asc"
+):
+    data = select(User).options(
+        selectinload(User.user_roles).joinedload(UserRole.role)
     )
+    if search:
+        data = User.apply_search_filter(data, search)
+
+    count_query = data.with_only_columns(func.count(User.id))
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
+
+    sorted_query = User.apply_sorting(data, sort_field, sort_order)
+
+    total_pages = (total + size - 1) // size
+    paginated_query = sorted_query.limit(size).offset((page - 1) * size)
+
+    result = await db.execute(paginated_query)
     users = result.unique().scalars().all()
-    return [user.get_dto() for user in users]
+
+    return {
+        "data": [user.get_dto() for user in users],
+        "pagination": {
+            "total": total,
+            "total_pages": total_pages,
+            "page": page,
+            "size": size
+        }
+    }
 
 
 async def get_user(user_id: str, db: AsyncSession):

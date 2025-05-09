@@ -37,6 +37,26 @@ class Discipline(Base):
             selectinload(cls.module)
         )
 
+    @classmethod
+    def apply_filters(cls, query, name_search, module_search, format_filter):
+        if name_search:
+            query = query.where(cls.name.ilike(f"%{name_search}%"))
+        if module_search:
+            query = query.where(Module.name.ilike(f"%{module_search}%"))
+        if format_filter:
+            query = query.where(cls.format == format_filter)
+        return query
+
+    @classmethod
+    def get_favorites(cls, user_id: str):
+        from models import Favorite
+
+        return (
+            cls.get_joined_data()
+            .join(Favorite, Favorite.discipline_id == cls.id)
+            .where(Favorite.user_id == user_id)
+        )
+
     def get_dto(self):
         if not self.module:
             raise ValueError("Module relationship is not loaded")
