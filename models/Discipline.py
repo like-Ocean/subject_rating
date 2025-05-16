@@ -12,6 +12,14 @@ class DisciplineFormatEnum(enum.Enum):
     traditional = "традиционный"
     mixed = "смешанный"
 
+    @property
+    def label_ru(self):
+        return {
+            "online": "онлайн",
+            "traditional": "традиционный",
+            "mixed": "смешанный"
+        }[self.value]
+
 
 class Discipline(Base):
     __tablename__ = "disciplines"
@@ -44,7 +52,15 @@ class Discipline(Base):
         if module_search:
             query = query.where(Module.name.ilike(f"%{module_search}%"))
         if format_filter:
-            query = query.where(cls.format == format_filter)
+            format_mapping = {
+                "онлайн": DisciplineFormatEnum.online,
+                "традиционный": DisciplineFormatEnum.traditional,
+                "смешанный": DisciplineFormatEnum.mixed
+            }
+            format_enum = format_mapping.get(format_filter)
+            if not format_enum:
+                raise ValueError("Invalid format")
+            query = query.where(cls.format == format_enum)
         return query
 
     @classmethod
