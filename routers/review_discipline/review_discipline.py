@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from service import review_discipline_service, user_service
@@ -55,6 +55,7 @@ async def delete_review(
 @review_router.get("", response_model=PaginatedResponse[ReviewResponse])
 async def get_reviews(
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(user_service.get_current_user_optional),
     discipline_id: Optional[str] = Query(None),
     teacher_id: Optional[str] = Query(None, description="Фильтр по преподавателю (ID)"),
     page: int = Query(1, ge=1),
@@ -63,7 +64,7 @@ async def get_reviews(
     sort_order: str = Query("desc", description="Порядок сортировки (asc, desc)")
 ):
     return await review_discipline_service.get_all_reviews(
-        db, discipline_id, teacher_id, page,
+        db, current_user, discipline_id, teacher_id, page,
         page_size, sort_by, sort_order
     )
 

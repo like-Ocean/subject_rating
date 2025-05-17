@@ -1,10 +1,13 @@
+from typing import Optional
 from uuid import uuid4
 from sqlalchemy import (
     Column, ForeignKey, Text, Integer, select,
-    Float, Enum, Boolean, DateTime, func, CheckConstraint
+    Float, Enum, Boolean, DateTime, func,
+    CheckConstraint, case
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, joinedload, selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 from .ReviewVote import VoteTypeEnum
 from models import Discipline
 from database import Base
@@ -58,18 +61,22 @@ class ReviewDiscipline(Base):
 
     @classmethod
     def apply_sorting(cls, query, sort_by: str = "date", sort_order: str = "desc"):
-        sort_mapping = {
-            "date": cls.created_at,
-            "likes": "likes_count"
-        }
-        sort_column = sort_mapping.get(sort_by, cls.created_at)
+        from models import ReviewVote
+
+        if sort_by == "likes":
+            likes_count = func.sum(
+                case(
+                    (ReviewVote.vote == VoteTypeEnum.like, 1),
+                    else_=0
+                )
+            ).label("likes_count")
+            sort_expr = likes_count
+        else:
+            sort_expr = cls.created_at
 
         if sort_order.lower() == "desc":
-            sort_column = sort_column.desc()
-        else:
-            sort_column = sort_column.asc()
-
-        return query.order_by(sort_column)
+            return query.order_by(sort_expr.desc())
+        return query.order_by(sort_expr.asc())
 
     @classmethod
     def add_likes_count(cls, query):
@@ -84,6 +91,47 @@ class ReviewDiscipline(Base):
             )).label("likes_count"))
             .group_by(cls.id)
         )
+
+    @classmethod
+    async def paginated_query(
+            cls,
+            db: AsyncSession,
+            base_filters: list = None,
+            current_user: Optional[dict] = None,
+            page: int = 1,
+            page_size: int = 40,
+            sort_by: str = "date",
+            sort_order: str = "desc"
+    ):
+        query = cls.get_joined_data()
+        query = cls.add_likes_count(query)
+
+        if base_filters:
+            query = query.where(*base_filters)
+
+        count_query = query.with_only_columns(func.count(cls.id.distinct()))
+        total_result = await db.execute(count_query)
+        total = total_result.unique().scalar_one_or_none() or 0
+
+        sorted_query = cls.apply_sorting(query, sort_by, sort_order)
+
+        paginated_query = sorted_query.limit(page_size).offset((page - 1) * page_size)
+
+        result = await db.execute(paginated_query)
+        reviews = result.unique().scalars().all()
+
+        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+        user_id = str(current_user["id"]) if current_user else None
+        return {
+            "data": [r.dto_with_user_vote_info(user_id) for r in reviews],
+            "pagination": {
+                "total": total,
+                "total_pages": total_pages,
+                "page": page,
+                "size": page_size
+            }
+        }
 
     def get_dto(self):
         likes = sum(1 for v in self.votes if v.vote == VoteTypeEnum.like)
@@ -131,8 +179,23 @@ class ReviewDiscipline(Base):
             "likes": likes,
             "dislikes": dislikes,
             "total_rating": total_rating,
+            "user_vote": None,
             "complaints_count": len(
                 [complaint for complaint in self.complaints if not complaint.resolved]
             ),
             "created_at": self.created_at.isoformat(),
         }
+
+    def dto_with_user_vote_info(self, user_id: Optional[str]):
+        dto = self.get_dto()
+        dto["user_vote"] = self._get_user_vote(user_id)
+        return dto
+
+    def _get_user_vote(self, user_id: Optional[str]):
+        if not user_id:
+            return None
+
+        for vote in self.votes:
+            if str(vote.user_id) == user_id:
+                return vote.vote.value
+        return None

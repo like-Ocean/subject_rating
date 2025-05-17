@@ -1,5 +1,5 @@
 from pydantic import BaseModel, UUID4, Field
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from models.ReviewDiscipline import ReviewStatusEnum
 from .AdminResponse import ModuleBaseResponse
@@ -153,6 +153,11 @@ class ReviewResponse(BaseModel):
         ...,
         description="Общий рейтинг (лайки - дизлайки)",
         example=8
+    )
+    user_vote: Optional[Literal["like", "dislike"]] = Field(
+        None,
+        description="Голос текущего пользователя (like/dislike)",
+        example="like"
     )
     complaints_count: int = Field(
         ...,
