@@ -33,9 +33,17 @@ class Discipline(Base):
     module_id = Column(UUID(as_uuid=True), ForeignKey("modules.id"), nullable=False)
 
     module = relationship("Module", back_populates="disciplines")
-    reviews = relationship("ReviewDiscipline", back_populates="discipline")
+    reviews = relationship(
+        "ReviewDiscipline",
+        back_populates="discipline",
+        cascade="all, delete-orphan"
+    )
     favorites = relationship("Favorite", back_populates="discipline", cascade="all, delete-orphan")
-    teacher_disciplines = relationship("TeacherDiscipline", back_populates="discipline")
+    teacher_disciplines = relationship(
+        "TeacherDiscipline",
+        back_populates="discipline",
+        cascade="all, delete-orphan"
+    )
 
     @classmethod
     def get_joined_data(cls):

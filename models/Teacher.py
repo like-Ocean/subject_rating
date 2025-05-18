@@ -16,7 +16,11 @@ class Teacher(Base):
     surname = Column(String(50), nullable=False)
     patronymic = Column(String(50), nullable=True)
 
-    teacher_disciplines = relationship("TeacherDiscipline", back_populates="teacher")
+    teacher_disciplines = relationship(
+        "TeacherDiscipline",
+        back_populates="teacher",
+        cascade="all, delete-orphan"
+    )
 
     @classmethod
     def get_joined_data(cls):
