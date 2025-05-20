@@ -4,6 +4,7 @@ from .Role import RoleEnum
 from .Role import Role
 from .User import User
 from .UserRole import UserRole
+from .PasswordResetToken import PasswordResetToken
 from .Teacher import Teacher
 from .Discipline import DisciplineFormatEnum
 from .Discipline import Discipline

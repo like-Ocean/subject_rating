@@ -26,7 +26,16 @@ class User(Base):
         cascade="all, delete-orphan",
         lazy="joined"
     )
-    complaints = relationship("Complaint", back_populates="user", cascade="all, delete-orphan")
+    complaints = relationship(
+        "Complaint",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    password_reset_tokens = relationship(
+        "PasswordResetToken",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
     def set_password(self, password: str):
         self.password = generate_password_hash(password)

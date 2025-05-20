@@ -7,8 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 from models import User
 from database import get_db
-from service import user_service
-from .user_scheme import RegisterModel, Authorization, ChangePasswordModel, ChangeModel
+from service import user_service, mail_service
+from .user_scheme import (
+    RegisterModel, Authorization, ChangePasswordModel, ChangeModel,
+    ForgotPasswordRequest, ResetPasswordRequest
+)
 from response_models import UserResponse, PaginatedResponse
 
 user_router = APIRouter(prefix="/users", tags=["users"])
@@ -117,3 +120,20 @@ async def delete_user(
     db: AsyncSession = Depends(get_db)
 ):
     return await user_service.delete_user(db, id, current_user)
+
+
+@user_router.post("/forgot-password")
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    await mail_service.forgot_password(db, data.email)
+    return {"detail": "If the email exists, a reset link will be sent"}
+
+
+@user_router.post("/reset-password")
+async def reset_password(
+    data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    return await mail_service.reset_password(db, data.token, data.new_password)
