@@ -124,7 +124,7 @@ async def add_module(module_name: str, current_user: User, db: AsyncSession):
     )
     module = is_exist.scalars().first()
     if module:
-        raise HTTPException(status_code=500, detail="Module is already exist")
+        return module.get_dto()
 
     new_module = Module(name=module_name)
     db.add(new_module)
