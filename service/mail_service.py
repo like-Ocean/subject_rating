@@ -15,6 +15,7 @@ from service.user_service import validate_password
 load_dotenv()
 
 RESET_TOKEN_EXPIRE_MINUTES = 30
+BASE_URL = f"{os.getenv('APP_PROTOCOL', 'http')}://{os.getenv('APP_HOST', 'localhost')}:{os.getenv('APP_PORT', '8000')}"
 
 conf = ConnectionConfig(
     MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
@@ -30,7 +31,7 @@ conf = ConnectionConfig(
 
 async def send_password_reset_email(email: str, token: str):
     fm = FastMail(conf)
-    reset_link = f"http://localhost:8000/reset-password?token={token}"
+    reset_link = f"{BASE_URL}/api/users/reset-password?token={token}"
 
     message = MessageSchema(
         subject="Password Reset Request",
