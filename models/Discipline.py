@@ -82,10 +82,14 @@ class Discipline(Base):
         )
 
     def get_dto(self):
+        from models import ReviewStatusEnum
+
         if not self.module:
             raise ValueError("Module relationship is not loaded")
 
-        reviews_grades = [r.grade for r in self.reviews if r.grade is not None]
+        published_reviews = [review for review in self.reviews if review.status == ReviewStatusEnum.published]
+
+        reviews_grades = [review.grade for review in published_reviews if review.grade is not None]
         avg_rating = sum(reviews_grades) / len(reviews_grades) if reviews_grades else 0.0
         review_count = len(reviews_grades)
         favorites_count = len(self.favorites) if self.favorites else 0
