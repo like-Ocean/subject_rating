@@ -2,7 +2,7 @@ from typing import Optional, List
 from fastapi import HTTPException, Response
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import (
@@ -29,7 +29,9 @@ def sort_disciplines(disciplines: List[Discipline], sort_by: str, sort_order: st
 
     def get_latest_date(d: Discipline):
         dates = [r.created_at for r in d.reviews]
-        return max(dates) if dates else datetime.min
+        if dates:
+            return max(dates)
+        return datetime.min.replace(tzinfo=timezone.utc)
 
     sort_key = {
         "rating": get_rating,

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Enum, ForeignKey, select
+from sqlalchemy import Column, String, Text, Enum, ForeignKey, select, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, selectinload
 from database import Base
@@ -58,7 +58,7 @@ class Discipline(Base):
         if name_search:
             query = query.where(cls.name.ilike(f"%{name_search}%"))
         if module_search:
-            query = query.where(Module.name.ilike(f"%{module_search}%"))
+            query = query.join(Module).where(func.lower(Module.name) == module_search.lower())
         if format_filter:
             format_mapping = {
                 "онлайн": DisciplineFormatEnum.online,

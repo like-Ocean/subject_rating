@@ -190,7 +190,6 @@ async def delete_review(db: AsyncSession, current_user: User, review_id: str):
     return Response(status_code=200)
 
 
-# TODO: Написать функционал отправки письма на почту если забыл пароль
 async def get_all_reviews(
         db: AsyncSession,
         current_user: Optional[User] = None,
