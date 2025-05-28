@@ -58,7 +58,10 @@ class Discipline(Base):
         if name_search:
             query = query.where(cls.name.ilike(f"%{name_search}%"))
         if module_search:
-            query = query.join(Module).where(func.lower(Module.name) == module_search.lower())
+            # добавить strip
+            query = query.join(Module).where(
+                func.lower(Module.name) == module_search.lower().strip()
+            )
         if format_filter:
             format_mapping = {
                 "онлайн": DisciplineFormatEnum.online,

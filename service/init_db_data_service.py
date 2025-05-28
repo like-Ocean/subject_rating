@@ -1,6 +1,10 @@
+import os
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from dotenv import load_dotenv
 from models import User, Role, UserRole, RoleEnum
+
+load_dotenv()
 
 
 async def init_roles(db: AsyncSession):
@@ -23,8 +27,8 @@ async def init_super_admin(db: AsyncSession):
     super_admin = result.scalars().first()
 
     if not super_admin:
-        default_email = "admin@example.com"
-        default_password = "Admin123_"
+        default_email = os.getenv("ADMIN_EMAIL", "admin@example.com")
+        default_password = os.getenv("ADMIN_PASSWORD", "Admin123_")
 
         result = await db.execute(select(User).where(User.email == default_email))
         super_admin = result.scalars().first()

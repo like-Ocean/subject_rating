@@ -99,10 +99,11 @@ async def get_all_users(
     sort_order: str = Query(
         "asc",
         description="Порядок сортировки (asc/desc)"
-    )
+    ),
+    current_user: User = Depends(user_service.get_current_user)
 ):
     return await user_service.get_users(
-        db, page, size, search,
+        db, current_user, page, size, search,
         sort_field, sort_order
     )
 

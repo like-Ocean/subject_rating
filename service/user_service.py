@@ -230,12 +230,16 @@ async def change_password(
 
 async def get_users(
         db: AsyncSession,
+        current_user: User,
         page: int,
         size: int,
         search: Optional[str] = None,
         sort_field: str = "surname",
         sort_order: str = "asc"
 ):
+    if current_user["role"] not in {RoleEnum.admin.value, RoleEnum.super_admin.value}:
+        raise HTTPException(status_code=403, detail="Only super-admin or admin can view users")
+
     data = select(User).options(
         selectinload(User.user_roles).joinedload(UserRole.role)
     )
