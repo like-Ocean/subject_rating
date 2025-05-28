@@ -15,7 +15,7 @@ swear_checker = SwearingCheck()
 def get_review_status(offensive_score: float) -> ReviewStatusEnum:
     if offensive_score >= 0.80:
         return ReviewStatusEnum.rejected
-    if offensive_score >= 0.50:
+    if offensive_score >= 0.30:
         return ReviewStatusEnum.pending
     return ReviewStatusEnum.published
 
