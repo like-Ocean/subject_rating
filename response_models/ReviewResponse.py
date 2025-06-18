@@ -3,6 +3,7 @@ from typing import Optional, Literal
 from datetime import datetime
 from models.ReviewDiscipline import ReviewStatusEnum
 from .AdminResponse import ModuleBaseResponse
+from .TeacherResponse import TeacherResponse
 
 
 class Author(BaseModel):
@@ -121,14 +122,8 @@ class ReviewResponse(BaseModel):
         ...,
         description="Дисциплина, к которой относится отзыв"
     )
-    lector: Lector = Field(
-        ...,
-        description="Преподаватель-лектор"
-    )
-    practic: Practic = Field(
-        ...,
-        description="Преподаватель практики"
-    )
+    lector: Optional[Lector] = None
+    practic: Optional[Practic] = None
     offensive_score: float = Field(
         ...,
         description="Уровень нарушения правил (0-1)",

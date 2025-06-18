@@ -221,13 +221,18 @@ async def delete_discipline(
     return Response(status_code=200)
 
 
-async def get_disciplines(db: AsyncSession):
+async def get_disciplines(db: AsyncSession, current_user: Optional[dict] = None):
     result = await db.execute(Discipline.get_joined_data())
     disciplines = result.scalars().all()
-    return [discipline.get_dto() for discipline in disciplines]
+    user_id = str(current_user["id"]) if current_user else None
+    return [discipline.get_dto(user_id) for discipline in disciplines]
 
 
-async def get_discipline(db: AsyncSession, discipline_id: str):
+async def get_discipline(
+        db: AsyncSession,
+        discipline_id: str,
+        current_user: Optional[dict] = None
+):
     res = await db.execute(
         Discipline.get_joined_data()
         .where(Discipline.id == discipline_id)
@@ -236,7 +241,8 @@ async def get_discipline(db: AsyncSession, discipline_id: str):
     if not discipline:
         raise HTTPException(status_code=400, detail="Discipline not found")
 
-    return discipline.get_dto()
+    user_id = str(current_user["id"]) if current_user else None
+    return discipline.get_dto(user_id)
 
 
 async def search_disciplines(
@@ -248,6 +254,7 @@ async def search_disciplines(
         format_filter: Optional[str] = None,
         sort_by: Optional[str] = "rating",  # "rating", "reviews", "latest"
         sort_order: Optional[str] = "desc",  # "asc" или "desc"
+        current_user: Optional[dict] = None
 ):
     data = Discipline.get_joined_data()
     query = Discipline.apply_filters(
@@ -268,9 +275,9 @@ async def search_disciplines(
     disciplines = result.unique().scalars().all()
 
     sorted_disciplines = sort_disciplines(disciplines, sort_by, sort_order)
-
+    user_id = str(current_user["id"]) if current_user else None
     return {
-        "data": [discipline.get_dto() for discipline in sorted_disciplines],
+        "data": [discipline.get_dto(user_id) for discipline in sorted_disciplines],
         "pagination": {
             "total": total,
             "total_pages": total_pages,
@@ -311,7 +318,7 @@ async def add_favorite(db: AsyncSession, user_id: str, discipline_id: str):
     result = await db.execute(query)
     updated_discipline = result.scalars().first()
 
-    return updated_discipline.get_dto()
+    return updated_discipline.get_dto(user_id)
 
 
 async def remove_favorite(db: AsyncSession, user_id: str, discipline_id: str):
@@ -344,7 +351,7 @@ async def remove_favorite(db: AsyncSession, user_id: str, discipline_id: str):
     result = await db.execute(query)
     updated_discipline = result.scalars().first()
 
-    return updated_discipline.get_dto()
+    return updated_discipline.get_dto(user_id)
 
 
 async def get_user_favorites(
@@ -378,7 +385,7 @@ async def get_user_favorites(
     sorted_disciplines = sort_disciplines(disciplines, sort_by, sort_order)
 
     return {
-        "data": [discipline.get_dto() for discipline in sorted_disciplines],
+        "data": [discipline.get_dto(user_id) for discipline in sorted_disciplines],
         "pagination": {
             "total": total,
             "total_pages": total_pages,

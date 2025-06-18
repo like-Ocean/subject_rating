@@ -54,8 +54,11 @@ async def delete_discipline(
 
 
 @discipline_router.get("/get", response_model=List[DisciplineResponse])
-async def get_disciplines(db: AsyncSession = Depends(get_db)):
-    return await discipline_service.get_disciplines(db)
+async def get_disciplines(
+        db: AsyncSession = Depends(get_db),
+        current_user: Optional[User] = Depends(user_service.get_current_user_optional)
+):
+    return await discipline_service.get_disciplines(db, current_user)
 
 
 @discipline_router.get("/search", response_model=PaginatedResponse[DisciplineResponse])
@@ -82,18 +85,23 @@ async def search_disciplines(
     sort_order: SortOrder = Query(
         SortOrder.desc,
         description="Порядок сортировки"
-    )
+    ),
+    current_user: Optional[User] = Depends(user_service.get_current_user_optional)
 ):
     return await discipline_service.search_disciplines(
         db, page, size, name_search, module_search,
         format_filter.value if format_filter else None,
-        sort_by.value, sort_order.value
+        sort_by.value, sort_order.value, current_user
     )
 
 
 @discipline_router.get("/discipline/{id}", response_model=DisciplineResponse)
-async def get_discipline(id, db: AsyncSession = Depends(get_db)):
-    return await discipline_service.get_discipline(db, id)
+async def get_discipline(
+        id,
+        db: AsyncSession = Depends(get_db),
+        current_user: Optional[User] = Depends(user_service.get_current_user_optional)
+):
+    return await discipline_service.get_discipline(db, id, current_user)
 
 
 @discipline_router.post("/favorite/add", response_model=DisciplineResponse)

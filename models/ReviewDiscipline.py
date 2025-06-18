@@ -37,8 +37,16 @@ class ReviewDiscipline(Base):
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     discipline_id = Column(UUID(as_uuid=True), ForeignKey("disciplines.id"), nullable=False)
-    lector_id = Column(UUID(as_uuid=True), ForeignKey("teachers.id"), nullable=False)
-    practic_id = Column(UUID(as_uuid=True), ForeignKey("teachers.id"), nullable=False)
+    lector_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("teachers.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    practic_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("teachers.id", ondelete="SET NULL"),
+        nullable=True
+    )
 
     author = relationship("User", back_populates="reviews")
     discipline = relationship("Discipline", back_populates="reviews")

@@ -1,8 +1,8 @@
 from typing import Optional
 from fastapi import HTTPException, Response
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import Teacher, TeacherDiscipline, Discipline, User, RoleEnum
+from models import Teacher, TeacherDiscipline, Discipline, User, RoleEnum, ReviewDiscipline
 
 
 async def create_teacher(
@@ -85,6 +85,17 @@ async def delete_teacher(
     teacher = result.scalars().first()
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
+
+    await db.execute(
+        update(ReviewDiscipline)
+        .where(ReviewDiscipline.lector_id == teacher_id)
+        .values(lector_id=None)
+    )
+    await db.execute(
+        update(ReviewDiscipline)
+        .where(ReviewDiscipline.practic_id == teacher_id)
+        .values(practic_id=None)
+    )
 
     await db.delete(teacher)
     await db.commit()

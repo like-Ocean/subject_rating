@@ -54,3 +54,8 @@ class DisciplineResponse(BaseModel):
         description="Сколько раз добавляли в избранное",
         example=5
     )
+    is_favorite: bool = Field(
+        False,
+        description="Пользователь добавил в избранное?",
+        example=True
+    )

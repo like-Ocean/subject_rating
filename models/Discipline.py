@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy import Column, String, Text, Enum, ForeignKey, select, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, selectinload
@@ -84,7 +85,7 @@ class Discipline(Base):
             .where(Favorite.user_id == user_id)
         )
 
-    def get_dto(self):
+    def get_dto(self, current_user_id: Optional[str] = None):
         from models import ReviewStatusEnum
 
         if not self.module:
@@ -96,6 +97,13 @@ class Discipline(Base):
         avg_rating = sum(reviews_grades) / len(reviews_grades) if reviews_grades else 0.0
         review_count = len(reviews_grades)
         favorites_count = len(self.favorites) if self.favorites else 0
+
+        is_favorite = False
+        if current_user_id:
+            is_favorite = any(
+                str(f.user_id) == current_user_id
+                for f in self.favorites
+            )
 
         module_data = {
             "id": str(self.module.id),
@@ -112,5 +120,6 @@ class Discipline(Base):
             "module": module_data,
             "avg_rating": round(avg_rating, 1),
             "review_count": review_count,
-            "favorites_count": favorites_count
+            "favorites_count": favorites_count,
+            "is_favorite": is_favorite
         }
